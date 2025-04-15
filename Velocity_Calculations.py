@@ -34,36 +34,23 @@ def calculate_median_position(dlc_df, scorer):
     median_position_df = pd.DataFrame.from_dict(median_position, orient='index')
     return median_position_df
 
-UNREALISTIC_DISTANCE = 50
-def calculate_distance(median_position_df):
-    distances = median_position_df.diff()**2
-    distances = np.sqrt(distances.sum(axis=1))
-    unrealistic_mask = distances > UNREALISTIC_DISTANCE
-    
-    
-    distances[unrealistic_mask] = np.nan
-    distances = distances.interpolate(method='linear')
-    return distances
 
-FPS = 60
-def calculate_velocity(distances):
-    #velocity = distances.div(1/FPS)
-    velocity = distances
+def calculate_velocity(median_position_df):
+    distances = np.sqrt(median_position_df.diff()**2).sum(axis=1)
+    velocity = distances / (1/FPS)
+    velocity = gaussian_filter1d(velocity, 3)  
+
     return velocity
 
-WINDOW = 30
-def calculate_average_velocity(velocity):
-    # Use integer division to group frames into chunks of 30
-    chunk_indices = velocity.index // WINDOW
-    # Calculate mean for each chunk
-    chunked_average = velocity.groupby(chunk_indices).mean()
-    return chunked_average
+def bin_velocity(velocity, time_bins, timestamps, delay):
+    binned_velocity = np.interp(time_bins, np.linspace(timestamps[delay], timestamps[-1], len(velocity)), velocity)
+    
+    return binned_velocity
 
 def assign_ROI(median_position_df):
     ROI_labels = np.where((median_position_df['x'] > 343) & (median_position_df['y'] > 291), 'ROI', 'OF')
     median_position_df['label'] = ROI_labels
     return median_position_df
-
 
 def get_rotary_metadata(exp_folder):
         try:
@@ -86,7 +73,6 @@ def get_rotary_metadata(exp_folder):
         return None, None
 
 def get_top_cam_timesamps(subject_id, date, exp_num, exp_folder):
-     
     top_cam_path = fr'ONE_preproc\topCam\camera.times.{date}_{exp_num}_{subject_id}_topCam.npy'
     #print(f'exp_folder: {exp_folder}')
     #print(f'top_cam_folder: {top_cam_path} ')
@@ -94,18 +80,10 @@ def get_top_cam_timesamps(subject_id, date, exp_num, exp_folder):
     top_cam_timestamps= np.load(os.path.join(exp_folder, top_cam_path), allow_pickle=True)
     delay = math.ceil(abs((top_cam_timestamps[0] / .01660)))
     print(delay)
-    top_cam_timestamps = top_cam_timestamps[delay:]
+    #top_cam_timestamps = top_cam_timestamps[delay:]
 
     return delay, top_cam_timestamps
      
-def calculate_wheel_velocity(rotary_timestamps, rotary_position, top_cam_timestamps):
-    sampling_rate = 1 / np.diff(rotary_timestamps)[0]
-    wheel_velocity_raw = np.diff(np.concatenate([[0], rotary_position])) / sampling_rate
-    downsampled_timestamps = np.linspace(rotary_timestamps[0], rotary_timestamps[-1], len(top_cam_timestamps))
-    wheel_velocity = gaussian_filter1d(wheel_velocity_raw, 2)
-    wheel_velocity = np.interp(downsampled_timestamps, rotary_timestamps, wheel_velocity)
-
-    return downsampled_timestamps, wheel_velocity
 
 
 
