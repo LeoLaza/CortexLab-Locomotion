@@ -14,89 +14,59 @@ import plotly.express as px
 from scipy.stats import binned_statistic
 import math
 
-def calculate_median_position(dlc_df, scorer):
+def calculate_median_position(dlc_df, scorer, BODYPARTS = ['neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3']):
 
-    BODYPARTS = ['neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3']
 
-    # Group by bodyparts and filter for only the ones we want to use in our calculation
-    selected_data = dlc_df.loc[:, (scorer, BODYPARTS, slice(None))]
+    
+    bodypart_positions = dlc_df.loc[:, (scorer, BODYPARTS, slice(None))]
     
 
-    # Select Values of High Quality
-    likelihood_values = selected_data.xs('likelihood', level='coords', axis=1)
-    likelihood_values[likelihood_values <= 0.95] = np.nan
-    likelihood_values = likelihood_values.interpolate(method='linear')
-    strong_xs = selected_data.xs('x', level='coords', axis=1)
-    strong_ys = selected_data.xs('y', level='coords', axis=1)
-    x_medians = strong_xs.median(axis=1)
-    y_medians = strong_ys.median(axis=1)
-    median_position = {idx: {'x': x, 'y': y} for idx, (x, y) in enumerate(zip(x_medians, y_medians))}
-    median_position_df = pd.DataFrame.from_dict(median_position, orient='index')
-    return median_position_df
+    
+    likelihood_values = bodypart_positions.xs('likelihood', level='coords', axis=1)
+    low_filter = likelihood_values <= 0.95
+    strong_x = bodypart_positions.xs('x', level='coords', axis=1)  # Define first
+    strong_y = bodypart_positions.xs('y', level='coords', axis=1) 
+    strong_x[low_filter] = np.nan
+    strong_y[low_filter] = np.nan
+    strong_x = strong_x.interpolate(method='linear', axis=0)
+    strong_y = strong_y.interpolate(method='linear', axis=0)
+    x = strong_x.median(axis=1)
+    y = strong_y.median(axis=1)
+    
+    return  x, y
 
+def bin_median_positions(x, y,timestamps, start_time, bin_centers): 
+    binned_x = np.interp(bin_centers, np.linspace(timestamps[start_time], timestamps[-1], len(x)), x)
+    binned_y = np.interp(bin_centers, np.linspace(timestamps[start_time], timestamps[-1], len(y)), y)
+    return binned_x, binned_y
+    
 
-def calculate_velocity(median_position_df):
-    distances = np.sqrt(median_position_df.diff()**2).sum(axis=1)
-    velocity = distances / (1/FPS)
-    velocity = gaussian_filter1d(velocity, 3)  
-
+def calculate_velocity(binned_x, binned_y, bin_width):
+    
+    distances = np.sqrt(np.diff(binned_x)**2 + np.diff(binned_y)**2)
+    max_distance = np.percentile(distances, 99)  
+    distances[distances > max_distance] = np.nan
+    valid_indices = np.where(~np.isnan(distances))[0]
+    distances = np.interp(
+    np.arange(len(distances)),  
+    valid_indices,              
+    distances[valid_indices]    
+)
+    velocity_pix = distances / bin_width
+    conversion_factor = 0.07 
+    velocity = velocity_pix * conversion_factor
+    velocity = gaussian_filter1d(velocity, 3)
+    velocity = np.concatenate(([velocity[0] if len(velocity) > 0 else 0], velocity)) 
     return velocity
 
-def bin_velocity(velocity, time_bins, timestamps, delay):
-    binned_velocity = np.interp(time_bins, np.linspace(timestamps[delay], timestamps[-1], len(velocity)), velocity)
-    
-    return binned_velocity
-
-def assign_ROI(median_position_df):
-    ROI_labels = np.where((median_position_df['x'] > 343) & (median_position_df['y'] > 291), 'ROI', 'OF')
-    median_position_df['label'] = ROI_labels
-    return median_position_df
-
-def get_rotary_metadata(exp_folder):
-        try:
-            TICKS_PER_CYCLE = 1024
-            rotary = np.load(os.path.join(exp_folder, 'rotaryEncoder.raw.npy'), allow_pickle=True)
-            rotary = rotary.flatten()
-            rotary[rotary > 2**31] = rotary[rotary > 2**31] - 2**32
-            
-            timeline_file = glob.glob(os.path.join(exp_folder, f'*_Timeline.mat'))[0]   
-            time = loadmat(timeline_file)
-            rotary_timestamps = time['Timeline']['rawDAQTimestamps'].item()[0, :]
-            rotary_position = 360* rotary / (TICKS_PER_CYCLE*4)
-
-            return rotary_timestamps, rotary_position
-            
-
-        except Exception as e:
-            print(f"Error accessing {exp_folder}: {e}")
-            
-        return None, None
-
-def get_top_cam_timesamps(subject_id, date, exp_num, exp_folder):
-    top_cam_path = fr'ONE_preproc\topCam\camera.times.{date}_{exp_num}_{subject_id}_topCam.npy'
-    #print(f'exp_folder: {exp_folder}')
-    #print(f'top_cam_folder: {top_cam_path} ')
-    #print(f'combo: {os.path.join(exp_folder, top_cam_path)}')
-    top_cam_timestamps= np.load(os.path.join(exp_folder, top_cam_path), allow_pickle=True)
-    delay = math.ceil(abs((top_cam_timestamps[0] / .01660)))
-    print(delay)
-    #top_cam_timestamps = top_cam_timestamps[delay:]
-
-    return delay, top_cam_timestamps
-     
 
 
 
-# date = '2024-03-04'
-# subject_id = 'AV043'
+def calculate_wheel_velocity(rotary_position, bin_width, wheel_diameter=10):
+    wheel_circumference = np.pi * wheel_diameter
+    linear_distance_cm = np.diff(rotary_position) * wheel_circumference / 360 
+    wheel_velocity = np.abs(linear_distance_cm / bin_width) 
+    wheel_velocity = gaussian_filter1d(wheel_velocity, 3)
+    wheel_velocity = np.concatenate(([wheel_velocity[0] if len(wheel_velocity) > 0 else 0], wheel_velocity))
+    return wheel_velocity
 
-# data = load_specific_experiment_data(subject_id, date)
-# dlc_df, scorer = get_DLC_data(subject_id, date, delay)
-# exp_num, exp_folder = get_experiment_path(data)
-# median_position_df = calculate_median_position(dlc_df, scorer)
-# distances = calculate_distance(median_position_df)
-# velocity = calculate_velocity(distances)
-# rotary_timestamps, rotary_speed = get_rotary_metadata(exp_folder)
-# top_cam_timestamps= get_top_cam_timesamps(subject_id, date, exp_num, exp_folder)
-# print(top_cam_timestamps[0])
-# #downsampled_timestamps, wheel_velocity = calculate_wheel_velocity(rotary_timestamps, rotary_speed, velocity)
