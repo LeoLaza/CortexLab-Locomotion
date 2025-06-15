@@ -15,55 +15,39 @@ import glob
 from scipy.io import loadmat
 from pinkrigs_tools.dataset.query import load_data
 
-def load_ONE(subject_id, date):
+def load_ONE(exp_kwargs):
     """
-    Load specified components from ONE system.
-    
+    Load the ONE folder of a specified session.
+
     Parameters:
     -----------
-    subject_id : str
-        Subject identifier
-    date : str
-        Session date
+    exp_kwargs : dict
+        Experiment parameters (subject, expDate)
         
     Returns:
     --------
-    data : DataFrame
-        ONE system data
+    ONE : DataFrame containing ONE folder items
     """
 
-    data = load_data(
-    subject=subject_id,
-    expDate=date,
+    ONE = load_data(
     data_name_dict= 'all-default',
+    **exp_kwargs
     )
         
-    return data
+    return ONE
 
 
-def get_experiment_path(data):
+def get_experiment_path(ONE):
     """
-    Extract experiment folder path from ONE data.
-    
-    Parameters:
-    -----------
-    data : DataFrame
-        ONE system data
-        
-    Returns:
-    --------
-    exp_folder : str
-        Experiment folder path
-    exp_num : int
-        Experiment number
+    Extract experiment path from ONE data.
     """
 
-    exp_idx = data.index[data.expDef.isin(['spontaneousActivity'])][0]
-    exp_folder = data.loc[exp_idx, 'expFolder']
-    exp_num = data.loc[exp_idx, 'expNum']
-    return exp_folder, exp_num
+    exp_idx = ONE.index[ONE.expDef.isin(['spontaneousActivity'])][0]
+    exp_path = ONE.loc[exp_idx, 'expFolder']
 
-def get_timestamps(exp_kwargs, rigName='poppy-stim'):
+    return exp_path
+
+def get_cam_timestamps(exp_kwargs, rigName='poppy-stim'):
     """
     Load camera timestamps from ONE system.
     
@@ -72,66 +56,81 @@ def get_timestamps(exp_kwargs, rigName='poppy-stim'):
     exp_kwargs : dict
         Experiment parameters (subject, expDate)
     rigName : str
-        Rig identifier
+        Rig identifier 
         
     Returns:
     --------
-    start_time : int
-        Index of first valid timestamp
-    timestamps : array
-        Camera timestamps
+    exp_onset : int
+        Index of camera frame when experiment starts
+    cam_timestamps : array
+        Timestamps of camera recording
     """
     data_name_dict = {'topCam':{'camera':['times','ROIMotionEnergy']}}
     recordings = load_data(data_name_dict=data_name_dict,**exp_kwargs)
     stim_recordings = recordings[recordings['rigName'] == rigName]
     timestamps = stim_recordings['topCam'].iloc[0]['camera'].times
-    start_time = np.where(timestamps >=0)[0][0]
-    timestamps[:start_time] = np.nan
-    timestamps = timestamps.flatten()
+    exp_onset = np.where(timestamps >=0)[0][0]
+    timestamps[:exp_onset] = np.nan
+    cam_timestamps = timestamps.flatten()
     
-    return start_time, timestamps
+    return exp_onset, cam_timestamps
 
-def create_time_bins(timestamps, start_time, bin_size=0.1):
+def create_time_bins(cam_timestamps, exp_onset, target_freq=10):
     """
-    Create time bins for neural data analysis.
+    Create time bins for temporal alignment.
     
     Parameters:
     -----------
-    timestamps : array
-        Camera timestamps
-    start_time : int
-        Starting index
+    cam_timestamps : array
+        Index of camera frame when experiment starts
+    exp_onset: int
+        Index of camera frame when experiment starts
     bin_size : float
         Bin size in seconds
         
     Returns:
     --------
-    time_bins : array
-        Time bin edges
+    bin_edges : array
     bin_centers : array
-        Time bin centers
     bin_width : float
-        Time bin width
     """
-   
-    time_bins = np.arange(timestamps[start_time], timestamps[-1], bin_size)
-    bin_centers = (time_bins[:-1] + time_bins[1:]) / 2
-    bin_width = bin_centers[1] - bin_centers[0]
-    return time_bins, bin_centers, bin_width
+    bin_width = 1.0 / target_freq
+    bin_edges = np.arange(cam_timestamps[exp_onset], cam_timestamps[-1], bin_width)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    return bin_edges, bin_centers, bin_width #check if we need to return all three
 
+def temporally_align_variable(variable, bin_centers, timestamps):
+    """Align any data stream, only interpolate within valid range"""
+    
+    # Find valid timestamp range  
+    min_time = np.nanmin(timestamps)
+    max_time = np.nanmax(timestamps) 
+    
+    # Only interpolate for bin_centers within timestamp range
+    valid_bins = (bin_centers >= min_time) & (bin_centers <= max_time)
+    
+    aligned_variable = np.full_like(bin_centers, np.nan)
+    
+    if np.any(valid_bins):
+        valid_mask = ~np.isnan(timestamps)
+        aligned_variable[valid_bins] = np.interp(
+            bin_centers[valid_bins], 
+            timestamps[valid_mask], 
+            variable[valid_mask]
+        )
+    
+    return aligned_variable
 
-def get_DLC_data (subject_id, date, start_time):
+def get_dlc_df (subject_id, date):
     """
     Load DeepLabCut tracking data.
     
     Parameters:
     -----------
     subject_id : str
-        Subject identifier
     date : str
-        Session date
-    start_time : int
-        Starting frame index
+    exp_onset : int
+        Index of camera frame when experiment starts
         
     Returns:
     --------
@@ -141,10 +140,44 @@ def get_DLC_data (subject_id, date, start_time):
         DLC scorer information
     """
     dlc_df = pd.read_hdf(fr'\\znas\Lab\Share\Maja\labelled_DLC_videos\{subject_id}_{date}DLC_resnet50_downsampled_trialJul11shuffle1_150000_filtered.h5')
-    dlc_df = dlc_df.iloc[start_time:]
-    scorer = dlc_df.columns.get_level_values('scorer')
+    dlc_df =dlc_df.droplevel('scorer', axis=1)
 
-    return dlc_df, scorer
+    return dlc_df
+
+def preprocess_dlc_data(dlc_df, quality_thresh = 0.90, selected_bodyparts = ['neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3'], max_distance=10, max_gap=30):
+
+    bodypart_positions = dlc_df.loc[:, (selected_bodyparts, slice(None))]
+    likelihood_values = bodypart_positions.xs('likelihood', level='coords', axis=1)
+
+    # exclude values below quality threshold
+    quality_filter = likelihood_values <= quality_thresh
+    processed_x = bodypart_positions.xs('x', level='coords', axis=1)  
+    processed_y = bodypart_positions.xs('y', level='coords', axis=1) 
+    processed_x[quality_filter] = np.nan
+    processed_y[quality_filter] = np.nan
+
+    for bodypart in selected_bodyparts:
+        x_diff = processed_x[bodypart].diff()  
+        y_diff = processed_y[bodypart].diff()
+        euclidean_dist = np.sqrt(x_diff**2 + y_diff**2)
+    
+        # Find positions where movement exceeds threshold
+        false_positive = euclidean_dist > max_distance
+    
+        # Apply position filter to this bodypart
+        processed_x.loc[false_positive, bodypart] = np.nan
+        processed_y.loc[false_positive, bodypart] = np.nan
+
+    for bodypart in selected_bodyparts:
+        processed_x[bodypart] = processed_x[bodypart].interpolate(method='linear', limit=max_gap)
+        processed_y[bodypart] = processed_y[bodypart].interpolate(method='linear', limit=max_gap)
+        total_nans_x = processed_x[bodypart].isna().sum()
+        total_nans_y = processed_y[bodypart].isna().sum()
+        print(f"{bodypart}: {total_nans_x} NaN frames for x ({total_nans_x/len(processed_x)*100:.1f}%)")
+        print(f"{bodypart}: {total_nans_y} NaN frames for y ({total_nans_y/len(processed_x)*100:.1f}%)")
+
+        
+    return processed_x, processed_y
 
 
 def load_probes(exp_kwargs, rigName='poppy-stim'):
@@ -196,7 +229,7 @@ def load_probes(exp_kwargs, rigName='poppy-stim'):
     return spikes_0, clusters_0, spikes_1, clusters_1
 
 
-def get_rotary_metadata(exp_folder, bin_centers):
+def get_rotary_position(exp_folder):
     """
     Load and process rotary encoder data.
     
@@ -219,13 +252,13 @@ def get_rotary_metadata(exp_folder, bin_centers):
         rotary = np.load(os.path.join(exp_folder, 'rotaryEncoder.raw.npy'), allow_pickle=True)
         rotary = rotary.flatten()
         rotary[rotary > 2**31] = rotary[rotary > 2**31] - 2**32
+        rotary_position = 360* rotary / (TICKS_PER_CYCLE*4)
+        rotary_position = np.unwrap(rotary_position * np.pi/180) * 180/np.pi
             
         timeline_file = glob.glob(os.path.join(exp_folder, f'*_Timeline.mat'))[0]   
         time = loadmat(timeline_file)
         rotary_timestamps = time['Timeline']['rawDAQTimestamps'].item()[0, :]
-        rotary_position = 360* rotary / (TICKS_PER_CYCLE*4)
-        unwrapped_rotary_position = np.unwrap(rotary_position * np.pi/180) * 180/np.pi 
-        rotary_position = np.interp(bin_centers,rotary_timestamps, unwrapped_rotary_position)
+       
 
         return rotary_timestamps, rotary_position
             

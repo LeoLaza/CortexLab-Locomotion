@@ -12,8 +12,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from utils.neural_processing import normalize_spike_counts
 from utils.statistical_testing import cross_validate_correlations
+from utils.data_io import preprocess_dlc_data
+from utils.behavioral_analysis import calculate_median_position
 
-def plot_correlation_histogram(corrs):
+def plot_correlation_histogram(r):
     """
     Plot histogram of neural-behavioral correlations.
     
@@ -23,14 +25,14 @@ def plot_correlation_histogram(corrs):
         Correlation coefficients to plot
     """
     plt.figure(figsize=(12, 6))
-    plt.hist(corrs, bins= 100, alpha=0.7)
+    plt.hist(r, bins= 100, alpha=0.7)
     plt.xlabel('Correlation Coefficient', fontsize=18)
     plt.ylabel('Frequency', fontsize=18)
     plt.xticks( fontsize=16)
     plt.yticks( fontsize=16)
     plt.show()
 
-def plot_sorted_spike_counts(sorting_argument, velocity, wheel_velocity, wheel_mask, arena_mask, spike_counts, w_start=0, w_end=1500):
+def plot_sorted_spike_counts(sorting_argument, oa_speed, wh_speed, wh_mask, oa_mask, spike_counts, w_start=0, w_end=1500):
      
     """
     Plot spike counts sorted by correlation strength with velocity traces.
@@ -59,8 +61,8 @@ def plot_sorted_spike_counts(sorting_argument, velocity, wheel_velocity, wheel_m
     sorted_spike_counts = spike_counts[sorted_idx, :]
     
     # Prepare velocity data for plotting
-    velocity[~arena_mask] = 0
-    wheel_velocity[~wheel_mask] = 0
+    oa_speed[~oa_mask] = 0
+    wh_speed[~wh_mask] = 0
     
     # Create figure with three panels
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 12), 
@@ -68,7 +70,7 @@ def plot_sorted_spike_counts(sorting_argument, velocity, wheel_velocity, wheel_m
                                        sharex=True)
     
     # Plot velocities
-    ax1.plot(velocity[w_start:w_end], color='green', alpha=0.8)
+    ax1.plot(oa_speed[w_start:w_end], color='green', alpha=0.8)
     ax1.set_xticklabels([])
     ax1.set_xticks([])
     ax1.set_yticks([])
@@ -78,7 +80,7 @@ def plot_sorted_spike_counts(sorting_argument, velocity, wheel_velocity, wheel_m
     ax1.spines['left'].set_visible(False)
    #ax1.set_ylabel('Free Running Velocity (cm/s)', color='green')
 
-    ax2.plot(wheel_velocity[w_start:w_end], color='purple', alpha=0.8)
+    ax2.plot(wh_speed[w_start:w_end], color='purple', alpha=0.8)
     ax2.set_xticklabels([])
     ax2.set_xticks([])
     ax2.set_yticks([])
@@ -94,7 +96,7 @@ def plot_sorted_spike_counts(sorting_argument, velocity, wheel_velocity, wheel_m
     plt.show()
     
 
-def plot_wheel_arena_corr(arena_corrs, wheel_corrs):
+def plot_wheel_arena_corr(r_oa, r_wh):
     """
     Plot arena vs wheel correlations with identity line.
     
@@ -105,11 +107,11 @@ def plot_wheel_arena_corr(arena_corrs, wheel_corrs):
     wheel_corrs : array
         Wheel correlation coefficients
     """
-    id_corr = np.corrcoef(arena_corrs, wheel_corrs)[0, 1]
+    id_corr = np.corrcoef(r_oa, r_wh)[0, 1]
     print(f'Correlation between free and wheel running neurons: {id_corr}')
 
     plt.figure(figsize=(10, 8))
-    plt.scatter(arena_corrs, wheel_corrs, alpha=0.5)
+    plt.scatter(r_oa, r_wh, alpha=0.5)
     plt.xlabel('Open Arena Correlation Coefficient', fontsize=18)
     plt.ylabel('Wheel Running Correlation Coefficient', fontsize=18)
     plt.axhline(0, color='gray', linestyle='--')
@@ -160,7 +162,7 @@ def plot_cross_validation(train_corr_arena, test_corr_arena, train_corr_wheel, t
     plt.title(f'correlation train/test wheel r={wh_stability}')
     plt.show()
 
-def plot_masked_positions(binned_x, binned_y, arena_mask, wheel_mask):
+def plot_masked_positions(x, y, arena_mask, wheel_mask):
     """
     Plot position data colored by behavioral context.
     
@@ -172,47 +174,22 @@ def plot_masked_positions(binned_x, binned_y, arena_mask, wheel_mask):
         Context masks
     """
     plt.figure(figsize=(12, 10))
-    plt.scatter(binned_x[arena_mask], binned_y[arena_mask], c='green', s=2)
-    plt.scatter(binned_x[wheel_mask], binned_y[wheel_mask], c='purple', s=2)
+    plt.scatter(x[arena_mask], y[arena_mask], c='green', s=2)
+    plt.scatter(x[wheel_mask], y[wheel_mask], c='purple', s=2)
     plt.show
 
-def plot_all_correlation_distributions(all_sessions, n_sessions):
-    """
-    Plot correlation distributions across multiple sessions.
-    
-    Parameters:
-    -----------
-    all_sessions : list
-        List of session data dictionaries
-    n_sessions : int
-        Number of sessions
-    """
-    x_positions_arena = []
-    x_positions_wheel = []
-    arena_data = []
-    wheel_data = []
-    labels = []
+def plot_correlation_distributions(all_sessions, n_sessions):
 
-    for i, session in enumerate(all_sessions):
-        arena_corrs = session["correlations"]["arena"]
-        wheel_corrs = session["correlations"]["wheel"]
-        
-        arena_corrs = arena_corrs[~np.isnan(arena_corrs)]
-        wheel_corrs = wheel_corrs[~np.isnan(wheel_corrs)]
-        
-        x_positions_arena.append(i*2)
-        x_positions_wheel.append(i*2 + 0.8)
-        
-        # Store data
-        arena_data.append(arena_corrs)
-        wheel_data.append(wheel_corrs)
-        
-        # Create label
-        subject = session["metadata"]["subject_id"]
-        date = session["metadata"]["date"]
-        labels.append(f"{subject}\n{date}")
+    x_positions_arena = np.arange(n_sessions) * 2
+    x_positions_wheel = np.arange(n_sessions) * 2 + 0.8
 
-    fig, ax1 = plt.subplots(figsize=(2*n_sessions, 8))
+    arena_data = [session.r_oa[~np.isnan(session.r_oa)] for session in all_sessions]
+    wheel_data = [session.r_wh[~np.isnan(session.r_wh)] for session in all_sessions]
+
+
+    labels = [f"{session.subject_id}\n{session.date}" for session in all_sessions]
+
+    oa_distributions, ax1 = plt.subplots(figsize=(2*n_sessions, 8))
     violin_arena = ax1.violinplot(arena_data,positions = x_positions_arena, widths=0.7)
     
 
@@ -232,7 +209,7 @@ def plot_all_correlation_distributions(all_sessions, n_sessions):
     plt.tight_layout()
     plt.show()
 
-    fig2, ax2 = plt.subplots(figsize=(2*n_sessions, 8))
+    wh_distributions, ax2 = plt.subplots(figsize=(2*n_sessions, 8))
     violin_wheel = ax2.violinplot(wheel_data, positions = x_positions_wheel, widths=0.7)
 
     for pc in violin_wheel['bodies']:
@@ -247,105 +224,105 @@ def plot_all_correlation_distributions(all_sessions, n_sessions):
     ax2.grid(True, alpha=0.3)
     ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
 
-
     plt.tight_layout()
     plt.show()
 
+    return oa_distributions, wh_distributions
 
-def plot_all_stability(all_sessions, n_sessions):
-    """
-    Plot correlation stability across sessions.
+   
+def plot_all_stability(all_sessions):
+    """Plot stability scatter plots for all sessions"""
+    n_sessions = len(all_sessions)
+
+    # Create 2 rows x n_sessions columns
+    all_stability_plot, axes = plt.subplots(2, n_sessions, figsize=(6*n_sessions, 12))
+    if n_sessions == 1:
+        axes = axes.reshape(2, 1)
+        
     
-    Parameters:
-    -----------
-    all_sessions : list
-        List of session data dictionaries
-    n_sessions : int
-        Number of sessions
-    """
-
-    fig, ax = plt.subplots(figsize=(max(8, n_sessions), 8))
-
-    x_positions= np.arange(n_sessions)
-    arena_stability = []
-    wheel_stability = []
-    labels= []
-    
-
     for i, session in enumerate(all_sessions):
-        arena_stability.append(session["stability"]["arena"])
-        wheel_stability.append(session["stability"]["wheel"])
-
-        subject = session["metadata"]["subject_id"]
-        date = session["metadata"]["date"]
-        labels.append(f"{subject}\n{date}")
-
-    ax.scatter(x_positions, arena_stability, color ='green', alpha =0.7, label = 'Arena', s=45)
-    ax.scatter(x_positions, wheel_stability, color ='purple', alpha =0.7, label = 'Wheel', s=45)
-
-    ax.set_xticks(x_positions)
-    ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=18)
-    ax.tick_params(axis='y', labelsize=18)
-    ax.set_ylabel('Stability', fontsize = 18)
-    ax.set_title('Neural Stability Comparison Across Sessions', fontsize=24)
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-
+        # Arena stability plot (top row)
+        ax_arena = axes[0, i]
+        ax_arena.scatter(session.r_oa_first_half, session.r_oa_second_half, alpha=0.5)
+        ax_arena.axhline(0, color='gray', linestyle='--')
+        ax_arena.axvline(0, color='gray', linestyle='--')
+        ax_arena.set_xlim(-1, 1)
+        ax_arena.set_ylim(-1, 1)
+        ax_arena.set_xticks(np.arange(-1, 1.1, 0.4))
+        ax_arena.set_yticks(np.arange(-1, 1.1, 0.4))
+        ax_arena.tick_params(axis='both', labelsize=14)
+        ax_arena.set_title(f'Arena r={session.oa_stability:.3f}', fontsize=16, color='green')
+        
+        if i == 0:
+            ax_arena.set_ylabel('Test Correlation', fontsize=16)
+        ax_arena.set_xlabel('Train Correlation', fontsize=16)
+        
+        # Wheel stability plot (bottom row)
+        ax_wheel = axes[1, i]
+        ax_wheel.scatter(session.r_wh_first_half, session.r_wh_second_half, alpha=0.5, color='purple')
+        ax_wheel.axhline(0, color='gray', linestyle='--')
+        ax_wheel.axvline(0, color='gray', linestyle='--')
+        ax_wheel.set_xlim(-1, 1)
+        ax_wheel.set_ylim(-1, 1)
+        ax_wheel.set_xticks(np.arange(-1, 1.1, 0.4))
+        ax_wheel.set_yticks(np.arange(-1, 1.1, 0.4))
+        ax_wheel.tick_params(axis='both', labelsize=14)
+        ax_wheel.set_title(f'Wheel r={session.wh_stability:.3f}', fontsize=16, color='purple')
+    
+    plt.suptitle('Neural Stability: Train vs Test Correlations', fontsize=20, y=0.98)
     plt.tight_layout()
     plt.show()
 
-def plot_all_cross_context_corrs(all_sessions, n_sessions):
-    """
-    Plot cross-context correlations across sessions.
+    return all_stability_plot
+
+
+def plot_all_wheel_arena_corr(all_sessions):
+    """Plot cross-correlation between arena and wheel for all sessions"""
+    n_sessions = len(all_sessions)
     
-    Parameters:
-    -----------
-    all_sessions : list
-        List of session data dictionaries
-    n_sessions : int
-        Number of sessions
-    """
-
-    fig, ax = plt.subplots(figsize=(max(8, n_sessions), 8))
-
-    x_positions= np.arange(n_sessions)
-    cross_context = []
-    labels= []
+    # Create figure with subplots
+    all_wheel_arena_corr, axes = plt.subplots(1, n_sessions, figsize=(10*n_sessions, 8), 
+                             sharey=True, sharex=True)
+    if n_sessions == 1:
+        axes = [axes]
     
-
+    # Plot each session
     for i, session in enumerate(all_sessions):
-        cross_context.append(session["correlations"]["cross_context"])
+        ax = axes[i]
+        arena_corrs = session.r_oa
+        wheel_corrs = session.r_wh
+        
+        # Calculate cross-context correlation
+        valid = ~(np.isnan(arena_corrs) | np.isnan(wheel_corrs))
+        cross_corr = np.corrcoef(arena_corrs[valid], wheel_corrs[valid])[0, 1]
+        
+        # Plot
+        ax.scatter(arena_corrs, wheel_corrs, alpha=0.5)
+        ax.axhline(0, color='gray', linestyle='--')
+        ax.axvline(0, color='gray', linestyle='--')
+        ax.set_xlim(-0.5, 0.5)
+        ax.set_ylim(-0.5, 0.5)
+        ax.set_xticks(np.arange(-0.5, 0.51, 0.25))
+        ax.set_yticks(np.arange(-0.5, 0.51, 0.25))
+        ax.tick_params(axis='both', labelsize=14)
+        
+        # Labels
+        if i == 0:
+            ax.set_ylabel('Wheel Running Correlation', fontsize=18)
+        ax.set_xlabel('Open Arena Correlation', fontsize=18)
+        
+        # Title with session info
 
-        subject = session["metadata"]["subject_id"]
-        date = session["metadata"]["date"]
-        labels.append(f"{subject}\n{date}")
-
-    ax.scatter(x_positions, cross_context, color ='red', alpha =0.7, label = 'Arena', s=45)
-    
-
-    ax.set_xticks(x_positions)
-    ax.set_xticklabels(labels, rotation=45, ha='right', fontsize = 18)
-    ax.set_ylabel('Cross-Context Correlation', fontsize = 18)
-    ax.tick_params(axis='y', labelsize=18)
-    ax.set_title('Cross-Context Correlation Comparison Across Sesssion', fontsize=24)
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-
+        ax.set_title(f'{session.subject_id} - {session.date}\nr = {session.r_oa_wh:.3f}', fontsize=16)
+        
     plt.tight_layout()
     plt.show()
+    return  all_wheel_arena_corr
+    
+    
 
 
 def plot_categories(all_sessions, n_sessions):
-    """
-    Plot neuron category proportions across sessions.
-    
-    Parameters:
-    -----------
-    all_sessions : list
-        List of session data dictionaries
-    n_sessions : int
-        Number of sessions
-    """
 
     fig, ax = plt.subplots(figsize=(max(8, n_sessions), 8))
 
@@ -361,17 +338,17 @@ def plot_categories(all_sessions, n_sessions):
 
     for i, session in enumerate(all_sessions):
         
-        categories = session["categories"] 
+        categories = session.categories 
         
-        total_neurons = len(categories["context_invariant"])
+        total_neurons = len(session.spike_counts[0])
 
         for cat_name in category_names:
             count = np.sum(categories[cat_name])
             proportion = count / total_neurons if total_neurons > 0 else 0
             category_counts[cat_name].append(proportion)
 
-        subject = session["metadata"]["subject_id"]
-        date = session["metadata"]["date"]
+        subject = session.subject_id
+        date = session.date
         labels.append(f"{subject}\n{date}")
 
     bottom = np.zeros(n_sessions)
@@ -395,7 +372,7 @@ def plot_categories(all_sessions, n_sessions):
     plt.show()
 
 
-def plot_single_session(session_data, w_start=0, w_end=1200):
+def plot_single_session(session, w_start=0, w_end=1200):
     """
     Create comprehensive plots for a single session.
     
@@ -407,33 +384,41 @@ def plot_single_session(session_data, w_start=0, w_end=1200):
         Time window for plotting
     """
 
-    time_bins = session_data["metadata"]["time_bins"]
-    spike_counts = session_data["neural_data"]["spike_counts"]
-    binned_x = session_data["behavioral_data"]["binned_x"]
-    binned_y = session_data["behavioral_data"]["binned_y"]
-    velocity = session_data["behavioral_data"]["velocity"]
-    wheel_velocity = session_data["behavioral_data"]["wheel_velocity"]
-    arena_mask = session_data["behavioral_data"]["arena_mask"]
-    wheel_mask = session_data["behavioral_data"]["wheel_mask"]
-    arena_corrs = session_data["correlations"]["arena"]
-    wheel_corrs = session_data["correlations"]["wheel"]
-    plt.hist(velocity[velocity > 0], bins=100)
+    spike_counts = session.spike_counts
+    x = session.x
+    y = session.y
+    oa_speed= session.oa_speed
+    wh_speed= session.wh_speed
+    oa_running = session.oa_running
+    wh_running= session.wh_running
+    r_oa= session.r_oa
+    r_wh = session.r_wh
+    r_oa_first_half =session.r_oa_first_half
+    r_oa_second_half =session.r_oa_second_half
+    r_wh_first_half =session.r_wh_first_half 
+    r_wh_second_half= session.r_wh_second_half
+    oa_stability=session.oa_stability
+    wh_stability=session.wh_stability 
+
+    plt.hist(oa_speed[oa_speed > 0], bins=100)
     plt.xlabel('Velocity')
     plt.ylabel('Count')
     plt.axvline(1.0, color='g', label='Threshold')
     plt.legend()
-    plot_masked_positions(binned_x, binned_y, arena_mask, wheel_mask)
-    plot_masked_positions(binned_x[w_start:w_end], binned_y[w_start:w_end], arena_mask[w_start:w_end], wheel_mask[w_start:w_end])
-    plot_sorted_spike_counts(arena_corrs, velocity, wheel_velocity, wheel_mask, arena_mask, spike_counts, w_start, w_end)
-    plot_sorted_spike_counts(wheel_corrs, velocity, wheel_velocity, wheel_mask, arena_mask, spike_counts, w_start, w_end)
+    plot_masked_positions(x, y, oa_running, wh_running)
+    plot_masked_positions(x[w_start:w_end], y[w_start:w_end], oa_running[w_start:w_end], wh_running[w_start:w_end])
+    plot_sorted_spike_counts(r_oa, oa_speed, wh_speed, wh_running, oa_running, spike_counts, w_start, w_end)
+    plot_sorted_spike_counts(r_wh, oa_speed, wh_speed, wh_running, oa_running, spike_counts, w_start, w_end)
+    
 
-    plot_correlation_histogram(arena_corrs)
-    plot_correlation_histogram(wheel_corrs)
+    plot_correlation_histogram(r_oa)
+    plot_correlation_histogram(r_wh)
 
-    plot_wheel_arena_corr(arena_corrs, wheel_corrs)
+    plot_wheel_arena_corr(r_oa, r_wh)
 
-    train_corr_arena, test_corr_arena, train_corr_wheel, test_corr_wheel, oa_stability, wh_stability = cross_validate_correlations(spike_counts, arena_mask,wheel_mask, velocity, wheel_velocity, time_bins, split = 2)
-    plot_cross_validation(train_corr_arena, test_corr_arena, train_corr_wheel, test_corr_wheel, oa_stability, wh_stability)
+    
+    plot_cross_validation(r_oa_first_half, r_oa_second_half, r_wh_first_half, r_wh_second_half, oa_stability, wh_stability)
+
 
 
 def plot_all_sessions(all_sessions):
@@ -448,7 +433,140 @@ def plot_all_sessions(all_sessions):
 
     n_sessions= len(all_sessions)
 
-    plot_all_correlation_distributions(all_sessions, n_sessions)
-    plot_all_cross_context_corrs(all_sessions, n_sessions)
-    plot_all_stability(all_sessions, n_sessions)
+    plot_correlation_distributions(all_sessions, n_sessions)
+    plot_all_wheel_arena_corr(all_sessions)
+    plot_all_stability(all_sessions)
     plot_categories(all_sessions, n_sessions)
+    
+
+def plot_PCA(pctrajectories, arena_mask, wheel_mask):
+     
+    plt.figure(figsize=(15, 5))
+
+    plt.subplot(1,2,1)
+
+    plt.scatter(pctrajectories[arena_mask, 0],pctrajectories[arena_mask, 1], label="Arena", s=1, cmap="Reds", zorder=2)
+    plt.scatter(pctrajectories[wheel_mask, 0],pctrajectories[wheel_mask, 1], label="Wheel", s=1, cmap="Blues",zorder=1)
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.legend()
+    plt.tight_layout()
+
+
+    plt.subplot(1,2,2)
+
+    plt.scatter(pctrajectories[arena_mask, 0],pctrajectories[arena_mask, 1],label="Arena", s=1, cmap="Reds")
+    plt.scatter(pctrajectories[wheel_mask, 0],pctrajectories[wheel_mask, 1], label="Wheel", s=1, cmap="Blues")
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.legend()
+
+def plot_likelihood_distributions(likelihood, quality_thresh, selected_bodyparts):
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+    axes = axes.flatten()
+    for i, bodypart in enumerate(selected_bodyparts):
+        bodypart_likelihood = likelihood[bodypart]
+        bodypart_likelihood.hist(bins=50, alpha=0.7, ax=axes[i])
+        axes[i].set_title(f'{bodypart} - Likelihood Distribution')
+        axes[i].set_xlabel('Likelihood')
+        axes[i].set_ylabel('Frequency')
+        percentile = (bodypart_likelihood < quality_thresh).mean() * 100
+        axes[i].axvline(quality_thresh, color='red', linestyle='--', 
+                    label=f'{quality_thresh} threshold\n({percentile:.1f}th percentile)')
+        axes[i].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_position_changes(position_changes, selected_bodyparts, max_distance):
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+    axes = axes.flatten()
+
+    for i, bodypart in enumerate(selected_bodyparts):
+        position_changes[bodypart].hist(bins=50, alpha=0.7, ax=axes[i])
+        axes[i].set_title(f'{bodypart} - Position Changes')
+        axes[i].set_xlabel('Euclidean Distance (pixels)')
+        axes[i].set_ylabel('Frequency')
+        axes[i].set_xlim(0,20)
+        axes[i].axvline(max_distance, color='red', linestyle='--', label=f'Distance threshold')
+        axes[i].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_dlc_pre_post(raw_position_changes, processed_position_changes, raw_median_change, processed_median_change, selected_bodyparts, w_start=0, w_end=7200):
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    
+    
+    for bodypart in selected_bodyparts:
+        axes[0,0].plot(raw_position_changes[bodypart][w_start:w_end], alpha=0.6, label=bodypart)
+    axes[0,0].set_title('Raw - Individual Bodypart Changes')
+    axes[0,0].set_ylabel('Distance (pixels)')
+    axes[0,0].set_ylim(0, 30)
+    axes[0,0].legend()
+    axes[0,0].grid(True, alpha=0.3)
+    
+    for bodypart in selected_bodyparts:
+        axes[0,1].plot(processed_position_changes[bodypart][w_start:w_end], alpha=0.6, label=bodypart)
+    axes[0,1].set_title('Processed - Individual Bodypart Changes')
+    axes[0,1].set_ylabel('Distance (pixels)')
+    axes[0,1].set_ylim(0, 30)
+    axes[0,1].legend()
+    axes[0,1].grid(True, alpha=0.3)
+    
+
+    axes[1,0].plot(raw_median_change[w_start:w_end], 'r-', linewidth=2)
+    axes[1,0].set_title('Raw - Median Position Changes')
+    axes[1,0].set_xlabel('Frame')
+    axes[1,0].set_ylabel('Distance (pixels)')
+    axes[1,0].set_ylim(0, 20)
+    axes[1,0].grid(True, alpha=0.3)
+    
+    axes[1,1].plot(processed_median_change[w_start:w_end], 'b-', linewidth=2)
+    axes[1,1].set_title('Processed - Median Position Changes')
+    axes[1,1].set_xlabel('Frame')
+    axes[1,1].set_ylabel('Distance (pixels)')
+    axes[1,1].set_ylim(0, 20)
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+def plot_dlc_analyses(dlc_df, quality_thresh = 0.90, selected_bodyparts = ['neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3'], max_distance = 10, w_start =0, w_end=7200):
+
+    
+    bodypart_pos= dlc_df.loc[:, (selected_bodyparts, slice(None))]
+    likelihood = bodypart_pos.xs('likelihood', level='coords', axis=1)
+    plot_likelihood_distributions(likelihood, quality_thresh, selected_bodyparts)
+    
+    raw_position_changes = {}
+    raw_x = bodypart_pos.xs('x', level='coords', axis=1)  
+    raw_y = bodypart_pos.xs('y', level='coords', axis=1) 
+
+    for bodypart in selected_bodyparts:
+        x_diff = raw_x[bodypart].diff()
+        y_diff = raw_y[bodypart].diff()
+        raw_euclidean_dist = np.sqrt(x_diff**2 + y_diff**2)
+        raw_position_changes[bodypart] = raw_euclidean_dist
+
+    raw_median_x = raw_x.median(axis=1)
+    raw_median_y = raw_y.median(axis=1)
+    raw_median_change = np.sqrt(raw_median_x.diff()**2 + raw_median_y.diff()**2)
+
+    plot_position_changes(raw_position_changes, selected_bodyparts, max_distance)
+
+
+    processed_x, processed_y = preprocess_dlc_data(dlc_df, quality_thresh=quality_thresh, selected_bodyparts=selected_bodyparts, max_distance=15)
+    processed_x_median, processed_y_median = calculate_median_position(processed_x, processed_y)  
+    
+    processed_position_changes = {}
+    for bodypart in selected_bodyparts:
+        x_diff = processed_x[bodypart].diff()
+        y_diff = processed_y[bodypart].diff()
+        processed_position_changes[bodypart] = np.sqrt(x_diff**2 + y_diff**2)
+    
+    processed_median_change = np.sqrt(processed_x_median.diff()**2 + processed_y_median.diff()**2)
+    
+    plot_dlc_pre_post(raw_position_changes, processed_position_changes, raw_median_change, processed_median_change, selected_bodyparts, w_start, w_end)
+    

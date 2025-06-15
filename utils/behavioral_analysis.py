@@ -12,72 +12,15 @@ import numpy as np
 from scipy.ndimage import gaussian_filter1d
 import pandas as pd
 
-def calculate_median_position(dlc_df, scorer, BODYPARTS = ['neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3']):
-    """
-    Calculate robust median position from multiple DLC bodyparts.
-    
-    Parameters:
-    -----------
-    dlc_df : DataFrame
-        DLC tracking data
-    scorer : Index
-        DLC scorer information
-    BODYPARTS : list
-        List of bodypart names to use
-        
-    Returns:
-    --------
-    x : Series
-        Median x position
-    y : Series
-        Median y position
-    """
-    
-    bodypart_positions = dlc_df.loc[:, (scorer, BODYPARTS, slice(None))]
-    
 
     
-    likelihood_values = bodypart_positions.xs('likelihood', level='coords', axis=1)
-    low_filter = likelihood_values <= 0.95
-    strong_x = bodypart_positions.xs('x', level='coords', axis=1)  # Define first
-    strong_y = bodypart_positions.xs('y', level='coords', axis=1) 
-    strong_x[low_filter] = np.nan
-    strong_y[low_filter] = np.nan
-    strong_x = strong_x.interpolate(method='linear', axis=0)
-    strong_y = strong_y.interpolate(method='linear', axis=0)
-    x = strong_x.median(axis=1)
-    y = strong_y.median(axis=1)
-    
+def calculate_median_position(x,y):
+    x = x.median(axis=1)
+    y = y.median(axis=1)
     return  x, y
 
-def bin_median_positions(x, y,timestamps, start_time, bin_centers):
-    """
-    Bin position data to match neural data timing.
-    
-    Parameters:
-    -----------
-    x, y : Series
-        Position coordinates
-    timestamps : array
-        Camera timestamps
-    start_time : int
-        Starting time index
-    bin_centers : array
-        Time bin centers
-        
-    Returns:
-    --------
-    binned_x : array
-        Binned x positions
-    binned_y : array
-        Binned y positions
-    """ 
-    binned_x = np.interp(bin_centers, np.linspace(timestamps[start_time], timestamps[-1], len(x)), x)
-    binned_y = np.interp(bin_centers, np.linspace(timestamps[start_time], timestamps[-1], len(y)), y)
-    return binned_x, binned_y
 
-
-def calculate_velocity(binned_x, binned_y, bin_width):
+def calculate_oa_speed(x, y, bin_width):
     """
     Calculate velocity from position data with outlier removal and smoothing.
     
@@ -94,8 +37,8 @@ def calculate_velocity(binned_x, binned_y, bin_width):
         Smoothed velocity in cm/s
     """
     
-    distances = np.sqrt(np.diff(binned_x)**2 + np.diff(binned_y)**2)
-    max_distance = np.percentile(distances, 99)  
+    distances = np.sqrt(np.diff(x)**2 + np.diff(y)**2)
+    max_distance = np.percentile(distances, 99) # think about a more rigorpus approach to filtering what velocities would be unrealistic
     distances[distances > max_distance] = np.nan
     valid_indices = np.where(~np.isnan(distances))[0]
     distances = np.interp(
@@ -103,17 +46,17 @@ def calculate_velocity(binned_x, binned_y, bin_width):
     valid_indices,              
     distances[valid_indices]    
 )
-    velocity_pix = distances / bin_width
+    oa_speed_pix = distances / bin_width
     conversion_factor = 0.07 
-    velocity = velocity_pix * conversion_factor
-    velocity = gaussian_filter1d(velocity, 3)
-    velocity = np.concatenate(([velocity[0] if len(velocity) > 0 else 0], velocity)) 
-    return velocity
+    oa_speed = oa_speed_pix * conversion_factor
+    oa_speed = gaussian_filter1d(oa_speed, 3)
+    oa_speed = np.concatenate(([oa_speed[0] if len(oa_speed) > 0 else 0], oa_speed)) 
+    return oa_speed
 
 
 
 
-def calculate_wheel_velocity(rotary_position, bin_width, wheel_diameter=10):
+def calculate_wh_speed(rotary_position, bin_width, wh_diameter=15):
     """
     Calculate wheel running velocity from rotary encoder data.
     
@@ -131,14 +74,14 @@ def calculate_wheel_velocity(rotary_position, bin_width, wheel_diameter=10):
     wheel_velocity : array
         Wheel running velocity in cm/s
     """
-    wheel_circumference = np.pi * wheel_diameter
-    linear_distance_cm = np.diff(rotary_position) * wheel_circumference / 360 
-    wheel_velocity = np.abs(linear_distance_cm / bin_width) 
-    wheel_velocity = gaussian_filter1d(wheel_velocity, 3)
-    wheel_velocity = np.concatenate(([wheel_velocity[0] if len(wheel_velocity) > 0 else 0], wheel_velocity))
-    return wheel_velocity
+    wh_circumference = np.pi * wh_diameter
+    linear_distance_cm = np.diff(rotary_position) * wh_circumference / 360 
+    wh_speed = np.abs(linear_distance_cm / bin_width) 
+    wh_speed = gaussian_filter1d(wh_speed, 3)
+    wh_speed = np.concatenate(([wh_speed[0] if len(wh_speed) > 0 else 0], wh_speed))
+    return wh_speed
 
-def get_position_masks (binned_x, binned_y, center_x, center_y, radius, subject_id):
+def get_position_masks (x, y, center_x, center_y, radius, subject_id):
     """
     Classify position data into arena vs wheel contexts.
     
@@ -160,32 +103,32 @@ def get_position_masks (binned_x, binned_y, center_x, center_y, radius, subject_
     wheel_mask : array, bool  
         True for wheel periods
     """
-    distances = np.sqrt((binned_x - center_x) ** 2 + (binned_y - center_y) ** 2)
+    distances = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
 
-    wheel_mask = distances <= radius
-    wheel_mask = temporal_buffer(wheel_mask)
+    wh_pos = distances <= radius
+    wh_pos = temporal_buffer(wh_pos)
 
     
     right_corner =(
-        (binned_x > center_x ) &  
-        (binned_y > center_y)
+        (x > center_x ) &  
+        (y > center_y)
     )
 
     left_corner = (
-        (binned_x < center_x ) &  
-        (binned_y < center_y)
+        (x < center_x ) &  
+        (y < center_y)
     )   
 
     if not subject_id == 'GB012':
-        arena_mask = ~wheel_mask & (~right_corner)
+        oa_pos = ~wh_pos & (~right_corner)
 
     else:
-        arena_mask = ~wheel_mask & (~left_corner)
+        oa_pos = ~wh_pos & (~left_corner)
 
-    return arena_mask, wheel_mask
+    return oa_pos, wh_pos
 
 
-def temporal_buffer(mask, buffer_size=30):
+def temporal_buffer(pos_mask, buffer_size=30):
     """
     Smooth context transitions by buffering brief context switches.
     
@@ -201,16 +144,16 @@ def temporal_buffer(mask, buffer_size=30):
     smoothed_mask : array, bool
         Temporally buffered mask
     """
-    transition_indices = np.where(np.diff(mask.astype(int)) != 0)[0] + 1
+    transition_indices = np.where(np.diff(pos_mask.astype(int)) != 0)[0] + 1
     
     for i in range(len(transition_indices) - 1):
         if transition_indices[i+1] - transition_indices[i] < buffer_size:
             if transition_indices[i] > 0:
-                mask[transition_indices[i]:transition_indices[i+1]] = mask[transition_indices[i]-1]
+                pos_mask[transition_indices[i]:transition_indices[i+1]] = pos_mask[transition_indices[i]-1]
     
-    return mask
+    return pos_mask
 
-def get_speed_masks(velocity, wheel_velocity, arena_mask, wheel_mask):
+def get_speed_masks(oa_speed, wh_speed, oa_pos, wh_pos, oa_thresh = 2.0, wh_thresh=0.8):
     """
     Detect running periods in each context using velocity thresholds and bout detection.
     
@@ -233,32 +176,54 @@ def get_speed_masks(velocity, wheel_velocity, arena_mask, wheel_mask):
         True during wheel running periods
     """
 
-    wh_running = (wheel_velocity > 1) &  ~arena_mask
-    arena_velocity = velocity.copy()
-    arena_velocity[~arena_mask] = 0  
+
+    oa_speed[~oa_pos] = 0  
     
-    arena_onsets, arena_offsets = detect_bouts(
-        arena_velocity,
-        onset_threshold=2.0,
+    oa_onsets, oa_offsets = detect_bouts(
+        oa_speed,
+        onset_threshold=oa_thresh,
         offset_threshold=0.5,
-        min_bout_duration=20
+        min_bout_duration=20,
+        min_stable_offset=10
     )
-    
+
     # Create arena running mask from bouts
-    oa_running = np.zeros_like(velocity, dtype=bool)
-    for onset, offset in zip(arena_onsets, arena_offsets):
+    oa_running = np.zeros_like(oa_speed, dtype=bool)
+    for onset, offset in zip(oa_onsets, oa_offsets):
         oa_running[onset:offset] = True
+
+     # Wheel: simple threshold + find transitions
+    wh_speed[~wh_pos] = 0
+    wh_running = (wh_speed >= wh_thresh) & wh_pos
     
-    oa_running = oa_running & arena_mask  
+    # Find wheel onsets and offsets from boolean mask
+    wh_diff = np.diff(wh_running.astype(int))
+    wh_onsets = np.where(wh_diff == 1)[0] + 1  # Transition from False to True
+    wh_offsets = np.where(wh_diff == -1)[0] + 1  # Transition from True to False
     
-    return oa_running, wh_running #arena_onsets, arena_offsets
+    # Handle edge cases
+    if len(wh_onsets) > 0 and len(wh_offsets) == 0:
+        wh_offsets = np.array([len(wh_running) - 1])  # Running until end
+    elif len(wh_onsets) == 0 and len(wh_offsets) > 0:
+        wh_onsets = np.array([0])  # Running from start
+    elif wh_running[0]:  # Starts running
+        wh_onsets = np.concatenate([[0], wh_onsets])
+    if wh_running[-1]:  # Ends running
+        wh_offsets = np.concatenate([wh_offsets, [len(wh_running) - 1]])
+
+    
+    oa_running = oa_running & oa_pos 
+    wh_running = wh_running & wh_pos
+        
+    
+    return oa_running, wh_running, oa_onsets, oa_offsets, wh_onsets, wh_offsets
 
 
 
 
-def detect_bouts(velocity, 
-                 onset_threshold=2.0,      
-                 offset_threshold=0.5,     
+def detect_bouts(speed, 
+                 onset_threshold=None,      
+                 offset_threshold=None,     
                  min_bout_duration=20,    
                  min_stable_offset=10):
 
@@ -286,8 +251,8 @@ def detect_bouts(velocity,
         Bout offset indices
     """    
     
-    onsets = np.where((velocity[:-1] < onset_threshold) & 
-                      (velocity[1:] >= onset_threshold))[0] + 1
+    onsets = np.where((speed[:-1] < onset_threshold) & 
+                      (speed[1:] >= onset_threshold))[0] + 1
     
     if len(onsets) == 0:
         return np.array([]), np.array([])
@@ -296,19 +261,19 @@ def detect_bouts(velocity,
     for onset in onsets:
 
         offset_found = False
-        for i in range(onset + min_bout_duration, len(velocity)):
-            if i + min_stable_offset > len(velocity):
-                offsets.append(len(velocity) - 1)
+        for i in range(onset + min_bout_duration, len(speed)):
+            if i + min_stable_offset > len(speed):
+                offsets.append(len(speed) - 1)
                 offset_found = True
                 break
             
-            if np.all(velocity[i:i+min_stable_offset] < offset_threshold):
+            if np.all(speed[i:i+min_stable_offset] < offset_threshold):
                 offsets.append(i)
                 offset_found = True
                 break
         
         if not offset_found:
-            offsets.append(len(velocity) - 1)
+            offsets.append(len(speed) - 1)
     
     offsets = np.array(offsets)
     

@@ -13,9 +13,8 @@ from .neural_processing import (
 
 from .behavioral_analysis import (
     calculate_median_position,
-    bin_median_positions,
-    calculate_velocity,
-    calculate_wheel_velocity,
+    calculate_oa_speed,
+    calculate_wh_speed,
     get_position_masks,
     temporal_buffer,
     get_speed_masks,
@@ -43,17 +42,23 @@ from .visualization import (
     plot_masked_positions,
     plot_single_session,
     plot_all_sessions,
-    plot_categories
+    plot_categories,
+    plot_likelihood_distributions,
+    plot_position_changes,
+    plot_dlc_pre_post,
+    plot_dlc_analyses
 )
 
 from .data_io import (
     load_ONE,
     get_experiment_path,
-    get_timestamps,
+    get_cam_timestamps,
     create_time_bins,
-    get_DLC_data,
+    temporally_align_variable,
+    get_dlc_df,
+    preprocess_dlc_data,
     load_probes,
-    get_rotary_metadata,
+    get_rotary_position,
 )
 
 from .roi_detection import (
@@ -66,7 +71,6 @@ from .pipeline import (
     load_and_process_session,
     analyze_single_session,
     analyze_multiple_sessions,
-    combine_probes
 )
 
 __version__ = "0.1.0"

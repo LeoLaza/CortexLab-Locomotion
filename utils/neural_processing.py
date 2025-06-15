@@ -40,8 +40,8 @@ def normalize_spike_counts(spike_counts):
     normalized_counts : array, shape (n_neurons, n_time_bins)
         Z-score normalized spike counts
     """
-    spike_counts = (spike_counts - np.mean(spike_counts, axis=1, keepdims=True)) / np.std(spike_counts, axis=1, keepdims=True)
-    return spike_counts
+    spike_counts_norm = (spike_counts - np.mean(spike_counts, axis=1, keepdims=True)) / np.std(spike_counts, axis=1, keepdims=True)
+    return spike_counts_norm
 
 
 def filter_spike_counts(spike_counts, arena_mask, wheel_mask):
@@ -66,6 +66,6 @@ def filter_spike_counts(spike_counts, arena_mask, wheel_mask):
      wheel_var = np.var(spike_counts[:, wheel_mask], axis=1)
 
      zero_var = (arena_var == 0) | (wheel_var == 0)
-     spike_counts_filtered = spike_counts[~zero_var, :]
+     spike_counts = spike_counts[~zero_var, :]
 
-     return spike_counts_filtered
+     return spike_counts

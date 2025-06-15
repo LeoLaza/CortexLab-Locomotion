@@ -10,8 +10,10 @@ This module handles:
 
 
 import numpy as np
+from scipy.stats import zscore
+from sklearn.decomposition import PCA
 
-def get_correlations(spike_counts_filtered, velocity, wheel_velocity, arena_mask, wheel_mask, filter=True):
+def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask, filter=True):
     """
     Compute correlations between neural activity and velocity in each context.
     
@@ -37,24 +39,26 @@ def get_correlations(spike_counts_filtered, velocity, wheel_velocity, arena_mask
     wheel_corrs : array
         Neural-velocity correlations during wheel periods
     """
-    arena_corrs = np.zeros(spike_counts_filtered.shape[0])
-    wheel_corrs = np.zeros(spike_counts_filtered.shape[0])
+    r_oa = np.zeros(spike_counts.shape[0])
+    r_wh = np.zeros(spike_counts.shape[0])
 
-    for i in range(spike_counts_filtered.shape[0]):
-    # Free running correlation
-        arena_corrs[i] = np.corrcoef(velocity[arena_mask], spike_counts_filtered[i, arena_mask])[0, 1]
+    for i in range(spike_counts.shape[0]):
+            # Free running correlation
+            r_oa[i] = np.corrcoef(oa_speed[oa_mask], spike_counts[i, oa_mask])[0, 1]
         
-        # Wheel running correlation
-        wheel_corrs[i] = np.corrcoef(wheel_velocity[wheel_mask], spike_counts_filtered[i, wheel_mask])[0, 1]
+            # Wheel running correlation
+            r_wh[i] = np.corrcoef(wh_speed[wh_mask], spike_counts[i, wh_mask])[0, 1]
+
 
     if filter:
-        corrs_nan =  np.isnan(wheel_corrs) | np.isnan(arena_corrs)
-        wheel_corrs = wheel_corrs[~corrs_nan]
-        arena_corrs = arena_corrs[~corrs_nan]
+        r_nan =  np.isnan(r_oa) | np.isnan(r_wh)
+        r_oa = r_oa[~r_nan]
+        r_wh = r_wh[~r_nan]
+        
 
-    return arena_corrs, wheel_corrs
+    return r_oa, r_wh
 
-def get_cross_context_correlations(arena_corrs, wheel_corrs):
+def get_cross_context_correlations(r_oa, r_wh):
     """
     Compute correlation between neural responses across contexts.
     
@@ -71,7 +75,13 @@ def get_cross_context_correlations(arena_corrs, wheel_corrs):
         Correlation between arena and wheel neural responses
     """
 
-    valid = ~(np.isnan(wheel_corrs) | np.isnan(arena_corrs))
-    cross_context_corr = np.corrcoef(arena_corrs[valid], wheel_corrs[valid])[0,1]
+    valid = ~(np.isnan(r_oa) | np.isnan(r_wh))
+    r_oa_wh = np.corrcoef(r_oa[valid], r_wh[valid])[0,1]
 
-    return cross_context_corr
+    return r_oa_wh
+
+def run_PCA(spike_counts):
+    binsxneurons = spike_counts.T
+    binsxneurons = zscore(binsxneurons, axis=0)
+    pca = PCA(n_components = 10)
+    pctrajectories = pca.fit_transform(binsxneurons)
