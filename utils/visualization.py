@@ -57,17 +57,19 @@ def plot_sorted_spike_counts(sorting_argument, oa_speed, wh_speed, wh_mask, oa_m
      
     # Sort neurons by sorting argument
     sorted_idx = np.argsort(sorting_argument)[::-1]
-    spike_counts = normalize_spike_counts(spike_counts)
     sorted_spike_counts = spike_counts[sorted_idx, :]
-    
+
     # Prepare velocity data for plotting
     oa_speed[~oa_mask] = 0
     wh_speed[~wh_mask] = 0
+
+    n_neurons = len(sorted_spike_counts)
     
-    # Create figure with three panels
+    # Create figure
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 12), 
                                        gridspec_kw={'height_ratios': [1, 1, 3]},
                                        sharex=True)
+
     
     # Plot velocities
     ax1.plot(oa_speed[w_start:w_end], color='green', alpha=0.8)
@@ -90,8 +92,11 @@ def plot_sorted_spike_counts(sorting_argument, oa_speed, wh_speed, wh_mask, oa_m
     ax2.spines['left'].set_visible(False)
     #ax2.set_ylabel('Wheel Running Velocity (cm/s)', color='purple')
 
-    ax3.matshow(sorted_spike_counts[:, w_start:w_end], aspect= 'auto', cmap='gray_r', vmin=0, vmax=np.percentile(spike_counts, 90))
+
+    ax3.matshow(sorted_spike_counts[:, w_start:w_end], aspect= "auto", cmap='gray_r', vmin=0, vmax=np.percentile(spike_counts, 90), interpolation="none")
     ax3.set_yticks([])
+    ax3.set_ylim(n_neurons - 0.5, -0.5)
+    
     plt.tight_layout()
     plt.show()
     
@@ -178,123 +183,141 @@ def plot_masked_positions(x, y, arena_mask, wheel_mask):
     plt.scatter(x[wheel_mask], y[wheel_mask], c='purple', s=2)
     plt.show
 
-def plot_correlation_distributions(all_sessions, n_sessions):
+def plot_correlation_distributions(all_sessions, n_sessions, axes=None):
 
-    x_positions_arena = np.arange(n_sessions) * 2
-    x_positions_wheel = np.arange(n_sessions) * 2 + 0.8
+    n_sessions = len(all_sessions)
+    standalone = axes is None
+
+    plt.rcParams['font.family'] = 'Arial'
+    plt.rcParams['font.size'] = 14
+    plt.rcParams['axes.linewidth'] = 1.5
+    plt.rcParams['xtick.major.width'] = 1.5
+    plt.rcParams['ytick.major.width'] = 1.5
+    plt.rcParams['xtick.major.size'] = 6
+    plt.rcParams['ytick.major.size'] = 6
+
+    if standalone:
+        fig, axes = plt.subplots(2, 1, figsize=(2*n_sessions + 2, 10))
+        show_plot = True
+
+        if n_sessions == 1:
+            axes = axes.reshape(2, 1)
 
     arena_data = [session.r_oa[~np.isnan(session.r_oa)] for session in all_sessions]
     wheel_data = [session.r_wh[~np.isnan(session.r_wh)] for session in all_sessions]
 
 
-    labels = [f"{session.subject_id}\n{session.date}" for session in all_sessions]
+    positions = np.arange(n_sessions) * 1.5
 
-    oa_distributions, ax1 = plt.subplots(figsize=(2*n_sessions, 8))
-    violin_arena = ax1.violinplot(arena_data,positions = x_positions_arena, widths=0.7)
     
-
+    violin_arena = axes[0].violinplot(arena_data,positions = positions, widths=0.7)
     for pc in violin_arena['bodies']:
-        pc.set_facecolor('green')
-        pc.set_alpha(0.7)
+            pc.set_facecolor('green')
+            pc.set_alpha(0.7)
     
+    axes[0].set_xlim(-0.75, positions[-1] + 0.75 if n_sessions > 1 else 0.75)
+    axes[0].set_ylim(-0.5, 0.5)
+    axes[0].set_xticks([])  
+    axes[0].grid(True, alpha=0.3)
+    axes[0].axhline(y=0, color='k', linestyle='--', alpha=0.5)
 
-    ax1.set_xticks([i*2 + 0.8 for i in range(n_sessions)])
-    ax1.set_xticklabels(labels, rotation=45, ha='right', fontsize = 18)
-    ax1.set_ylabel('Correlation', fontsize=18)
-    ax1.tick_params(axis='y', labelsize=18)
-    ax1.set_title('Distribution of Neural Correlations in Arena by Session', fontsize=24)
-    ax1.grid(True, alpha=0.3)
-    ax1.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-
-    plt.tight_layout()
-    plt.show()
-
-    wh_distributions, ax2 = plt.subplots(figsize=(2*n_sessions, 8))
-    violin_wheel = ax2.violinplot(wheel_data, positions = x_positions_wheel, widths=0.7)
-
+    violin_wheel = axes[1].violinplot(wheel_data, positions=positions, widths=0.7)
     for pc in violin_wheel['bodies']:
-        pc.set_facecolor('purple')
-        pc.set_alpha(0.7)
+            pc.set_facecolor('purple')
+            pc.set_alpha(0.7)
+            
+    axes[1].set_xlim(-0.75, positions[-1] + 0.75 if n_sessions > 1 else 0.75)
+    axes[1].set_ylim(-0.5, 0.5)
+    axes[1].set_xticks(positions)  # Keep tick for label placement
+    axes[1].grid(True, alpha=0.3)
+    axes[1].axhline(y=0, color='k', linestyle='--', alpha=0.5)
 
-    ax2.set_xticks([i*2 + 0.8 for i in range(n_sessions)])
-    ax2.set_xticklabels(labels, rotation=45, ha='right', fontsize = 18)
-    ax2.tick_params(axis='y', labelsize=18)
-    ax2.set_ylabel('Correlation', fontsize = 18)
-    ax2.set_title('Distribution of Neural Correlations on Wheel by Session', fontsize=24)
-    ax2.grid(True, alpha=0.3)
-    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+        
+    if standalone:
+        axes[1].set_xticklabels([f'{s.subject_id}\n{s.date}' for s in all_sessions], 
+                               rotation=45, ha='right', fontsize=18)
+    
+    else:
+        axes[1].set_xticklabels([])
 
-    plt.tight_layout()
-    plt.show()
-
-    return oa_distributions, wh_distributions
+    if standalone:
+        plt.suptitle('Neural Correlation Distributions', fontsize=18)
+        plt.tight_layout()
+        plt.show()
+    
+    return axes
 
    
-def plot_all_stability(all_sessions):
+def plot_all_stability(all_sessions, axes=None):
     """Plot stability scatter plots for all sessions"""
     n_sessions = len(all_sessions)
+    standalone = axes is None 
 
-    # Create 2 rows x n_sessions columns
-    all_stability_plot, axes = plt.subplots(2, n_sessions, figsize=(6*n_sessions, 12))
-    if n_sessions == 1:
-        axes = axes.reshape(2, 1)
-        
-    
+    if standalone:
+        fig, axes = plt.subplots(2, n_sessions, figsize=(6*n_sessions, 8))
+        if n_sessions == 1:
+            axes = axes.reshape(2, 1)
+
     for i, session in enumerate(all_sessions):
         # Arena stability plot (top row)
-        ax_arena = axes[0, i]
-        ax_arena.scatter(session.r_oa_first_half, session.r_oa_second_half, alpha=0.5)
-        ax_arena.axhline(0, color='gray', linestyle='--')
-        ax_arena.axvline(0, color='gray', linestyle='--')
-        ax_arena.set_xlim(-1, 1)
-        ax_arena.set_ylim(-1, 1)
-        ax_arena.set_xticks(np.arange(-1, 1.1, 0.4))
-        ax_arena.set_yticks(np.arange(-1, 1.1, 0.4))
-        ax_arena.tick_params(axis='both', labelsize=14)
-        ax_arena.set_title(f'Arena r={session.oa_stability:.3f}', fontsize=16, color='green')
+        axes[0, i].scatter(session.r_oa_first_half, session.r_oa_second_half, alpha=0.5, color='green')
+        axes[0, i].axhline(0, color='gray', linestyle='--')
+        axes[0, i].axvline(0, color='gray', linestyle='--')
+        axes[0, i].set_xlim(-1, 1)
+        axes[0, i].set_ylim(-1, 1)
+        axes[0, i].set_xticks(np.arange(-1, 1.1, 0.4))  
+        axes[0, i].set_yticks(np.arange(-1, 1.1, 0.4))  
+        
+        # Wheel stability
+        axes[1, i].scatter(session.r_wh_first_half, session.r_wh_second_half, alpha=0.5, color='purple')
+        axes[1, i].axhline(0, color='gray', linestyle='--')
+        axes[1, i].axvline(0, color='gray', linestyle='--')
+        axes[1, i].set_xlim(-1, 1)
+        axes[1, i].set_ylim(-1, 1)
+        axes[1, i].set_xticks(np.arange(-1, 1.1, 0.4))  
+        axes[1, i].set_yticks(np.arange(-1, 1.1, 0.4))  
+        
+        axes[0, i].set_title(f'Arena r={session.oa_stability:.3f}', fontsize=35)
+        axes[1, i].set_title(f'Wheel r={session.wh_stability:.3f}', fontsize=35)
         
         if i == 0:
-            ax_arena.set_ylabel('Test Correlation', fontsize=16)
-        ax_arena.set_xlabel('Train Correlation', fontsize=16)
-        
-        # Wheel stability plot (bottom row)
-        ax_wheel = axes[1, i]
-        ax_wheel.scatter(session.r_wh_first_half, session.r_wh_second_half, alpha=0.5, color='purple')
-        ax_wheel.axhline(0, color='gray', linestyle='--')
-        ax_wheel.axvline(0, color='gray', linestyle='--')
-        ax_wheel.set_xlim(-1, 1)
-        ax_wheel.set_ylim(-1, 1)
-        ax_wheel.set_xticks(np.arange(-1, 1.1, 0.4))
-        ax_wheel.set_yticks(np.arange(-1, 1.1, 0.4))
-        ax_wheel.tick_params(axis='both', labelsize=14)
-        ax_wheel.set_title(f'Wheel r={session.wh_stability:.3f}', fontsize=16, color='purple')
+            axes[0, i].set_ylabel('2nd Half', fontsize=18)
+            axes[1, i].set_ylabel('2nd Half', fontsize=18)
+        axes[0, i].set_xlabel('1st Half', fontsize=18)
+        axes[1, i].set_xlabel('1st Half', fontsize=18)
     
-    plt.suptitle('Neural Stability: Train vs Test Correlations', fontsize=20, y=0.98)
-    plt.tight_layout()
-    plt.show()
+        if standalone:
+            
+            axes[1, i].text(0, -1.4, f'{session.subject_id}\n{session.date}', 
+                          ha='center', va='top', fontsize=18, transform=axes[1, i].transData)
+    if standalone:
+        plt.suptitle('Neural Stability: Train vs Test Correlations', fontsize=18)
+        plt.tight_layout()
+        plt.show()
+        
+    return axes
 
-    return all_stability_plot
+   
 
 
-def plot_all_wheel_arena_corr(all_sessions):
+def plot_all_wheel_arena_corr(all_sessions, axes=None):
     """Plot cross-correlation between arena and wheel for all sessions"""
     n_sessions = len(all_sessions)
+    standalone = axes is None
     
-    # Create figure with subplots
-    all_wheel_arena_corr, axes = plt.subplots(1, n_sessions, figsize=(10*n_sessions, 8), 
-                             sharey=True, sharex=True)
-    if n_sessions == 1:
+    if standalone:
+        fig, axes = plt.subplots(1, n_sessions, figsize=(6*n_sessions, 8), 
+                                sharey=True, sharex=True)
+        if n_sessions == 1:
+            axes = [axes]
+        
+    elif n_sessions == 1 and not isinstance(axes, list):
         axes = [axes]
-    
     # Plot each session
     for i, session in enumerate(all_sessions):
         ax = axes[i]
         arena_corrs = session.r_oa
         wheel_corrs = session.r_wh
-        
-        # Calculate cross-context correlation
-        valid = ~(np.isnan(arena_corrs) | np.isnan(wheel_corrs))
-        cross_corr = np.corrcoef(arena_corrs[valid], wheel_corrs[valid])[0, 1]
         
         # Plot
         ax.scatter(arena_corrs, wheel_corrs, alpha=0.5)
@@ -304,73 +327,89 @@ def plot_all_wheel_arena_corr(all_sessions):
         ax.set_ylim(-0.5, 0.5)
         ax.set_xticks(np.arange(-0.5, 0.51, 0.25))
         ax.set_yticks(np.arange(-0.5, 0.51, 0.25))
-        ax.tick_params(axis='both', labelsize=14)
-        
-        # Labels
+        ax.set_title(f'r = {session.r_oa_wh:.3f}', fontsize=35)
+    
         if i == 0:
-            ax.set_ylabel('Wheel Running Correlation', fontsize=18)
-        ax.set_xlabel('Open Arena Correlation', fontsize=18)
+            ax.set_ylabel('Wheel Correlation', fontsize=18)
+        ax.set_xlabel('Arena Correlation', fontsize=18)
         
-        # Title with session info
-
-        ax.set_title(f'{session.subject_id} - {session.date}\nr = {session.r_oa_wh:.3f}', fontsize=16)
         
-    plt.tight_layout()
-    plt.show()
-    return  all_wheel_arena_corr
+        if standalone:
+            ax.text(0, -0.7, f'{session.subject_id}\n{session.date}', 
+                   ha='center', va='top', fontsize=18, transform=ax.transData)
     
+    if standalone:
+        plt.suptitle('Cross-Context Correlations', fontsize=18)
+        plt.tight_layout()
+        plt.show()
+        
+    return axes
     
 
 
-def plot_categories(all_sessions, n_sessions):
+def plot_categories(all_sessions, n_sessions, axes=None):
 
-    fig, ax = plt.subplots(figsize=(max(8, n_sessions), 8))
-
-    x_positions= np.arange(n_sessions)
-    labels= []
+    n_sessions= len(all_sessions)
+    standalone= axes is None
+ 
+    if standalone:
+        fig, axes = plt.subplots(1, n_sessions, figsize=(6*n_sessions, 8))  
+        if n_sessions == 1:  
+            axes = [axes]
+        show_plot = True
+    elif n_sessions == 1 and not isinstance(axes, list):
+        axes = [axes]
 
     category_names = ["context_invariant", "arena_only", "wheel_only", 
                      "context_switching", "non_encoding"]
     
     colors = ['purple', 'pink', 'red', 'orange', 'yellow']
     
-    category_counts = {name: [] for name in category_names}
-
-    for i, session in enumerate(all_sessions):
-        
-        categories = session.categories 
-        
-        total_neurons = len(session.spike_counts[0])
-
-        for cat_name in category_names:
-            count = np.sum(categories[cat_name])
-            proportion = count / total_neurons if total_neurons > 0 else 0
-            category_counts[cat_name].append(proportion)
-
-        subject = session.subject_id
-        date = session.date
-        labels.append(f"{subject}\n{date}")
-
-    bottom = np.zeros(n_sessions)
     
-    for cat_name, color in zip(category_names, colors):
-        proportions = category_counts[cat_name]
-        ax.bar(x_positions, proportions, bottom=bottom, 
-               label=cat_name.replace('_', ' ').title(), 
-               color=color, alpha=0.7, width=0.6)
-        bottom += proportions
+    for i, (session, ax) in enumerate(zip(all_sessions, axes)):
+        total_neurons = len(getattr(session, category_names[0]))
+        proportions = []
+        
+        for cat_name in category_names:
+            category_data = getattr(session, cat_name)
+            count = np.sum(category_data)
+            proportion = count / total_neurons if total_neurons > 0 else 0
+            proportions.append(proportion)
+        
+        
+        wedges, texts, autotexts = ax.pie(proportions, colors=colors, 
+                                         autopct='%1.1f%%', startangle=90)
+        
+        
+        for autotext in autotexts:
+            autotext.set_color('black')
+            autotext.set_fontsize(12)
+            autotext.set_weight('bold')
+        
+        
+        ax.set_title('Neuron Categories', fontsize=18)
 
-    ax.set_xticks(x_positions)
-    ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=12)
-    ax.set_ylabel('Proportion of Neurons', fontsize=18)
-    ax.set_title('Neuron Category Proportions Across Sessions', fontsize=20)
-    ax.tick_params(axis='y', labelsize=14)
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    ax.set_ylim(0, 1)
+    
+    if standalone:
+            ax.text(0, -1.5, f"{session.subject_id}\n{session.date}", 
+                   ha='center', va='top', fontsize=18, transform=ax.transData)
 
-    plt.tight_layout()
-    plt.show()
+    if axes:
+        axes[-1].legend(wedges, [name.replace('_', ' ').title() for name in category_names],
+                       loc='center left', bbox_to_anchor=(1, 0.5), fontsize=18)
 
+    if standalone:
+        plt.suptitle('Neuron Category Proportions', fontsize=18)
+        plt.tight_layout()
+        plt.show()
+        
+    return axes
+        
+        
+    
+  
+
+    
 
 def plot_single_session(session, w_start=0, w_end=1200):
     """
@@ -422,21 +461,40 @@ def plot_single_session(session, w_start=0, w_end=1200):
 
 
 def plot_all_sessions(all_sessions):
-    """
-    Create comprehensive plots for multiple sessions.
+ 
+    n_sessions = len(all_sessions)
     
-    Parameters:
-    -----------
-    all_sessions : list
-        List of session data dictionaries
-    """
-
-    n_sessions= len(all_sessions)
-
-    plot_correlation_distributions(all_sessions, n_sessions)
-    plot_all_wheel_arena_corr(all_sessions)
-    plot_all_stability(all_sessions)
-    plot_categories(all_sessions, n_sessions)
+    # Create figure with subplots
+    fig = plt.figure(figsize=(6*n_sessions, 60))
+    
+    # Create subplot grid
+    gs = fig.add_gridspec(6, n_sessions, height_ratios=[3, 3, 1, 1, 1, 1], 
+                         hspace=0.3, wspace=0.3)
+    
+    ax_arena_violin = fig.add_subplot(gs[0, :])
+    ax_wheel_violin = fig.add_subplot(gs[1, :])
+    axes_arena_stability = [fig.add_subplot(gs[2, i]) for i in range(n_sessions)]
+    axes_wheel_stability = [fig.add_subplot(gs[3, i]) for i in range(n_sessions)]
+    axes_cross = [fig.add_subplot(gs[4, i]) for i in range(n_sessions)]
+    axes_categories = [fig.add_subplot(gs[5, i]) for i in range(n_sessions)]
+    
+    # Plot using existing functions - they won't add session labels
+    plot_correlation_distributions(all_sessions, n_sessions, axes=[ax_arena_violin, ax_wheel_violin])
+    plot_all_stability(all_sessions, axes=np.array([axes_arena_stability, axes_wheel_stability]))
+    plot_all_wheel_arena_corr(all_sessions, axes=axes_cross)
+    plot_categories(all_sessions, n_sessions, axes=axes_categories)
+    
+    # ADDED: Add session labels only at the bottom
+    for i, session in enumerate(all_sessions):
+        axes_categories[i].text(0, -1.5, f'{session.subject_id}\n{session.date}', 
+                               ha='center', va='top', fontsize=35, fontweight='bold',
+                               transform=axes_categories[i].transData)
+    
+    plt.suptitle('Comprehensive Neural Analysis Across Sessions', fontsize=20, y=0.995)
+    plt.tight_layout()
+    plt.show()
+    
+    return fig
     
 
 def plot_PCA(pctrajectories, arena_mask, wheel_mask):

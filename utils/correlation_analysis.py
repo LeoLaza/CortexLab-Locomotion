@@ -85,3 +85,5 @@ def run_PCA(spike_counts):
     binsxneurons = zscore(binsxneurons, axis=0)
     pca = PCA(n_components = 10)
     pctrajectories = pca.fit_transform(binsxneurons)
+
+    return pctrajectories

@@ -171,7 +171,9 @@ def analyze_multiple_sessions(session_list, target_freq=10):
         other_sessions = all_sessions[:i] + all_sessions[i+1:]
         if len(other_sessions) > 0:
             null_arena, null_wheel = compute_null_distributions_for_session(session, other_sessions)
-            session = compute_p_values_from_null(session, null_arena, null_wheel)
+            compute_p_values_from_null(session, null_arena, null_wheel)
             print(f"Computed p-values for session {i+1}/{len(all_sessions)}")
+
+    categorise_neurons(all_sessions)
     
     return all_sessions

@@ -121,15 +121,15 @@ def compute_null_distributions_for_session(session, null_sessions):
     for i, null_session in enumerate(null_sessions):
         try:
             current_length = spike_counts.shape[1]
-            null_length = len(null_session.velocity)
+            null_length = len(null_session.oa_speed)
             min_length = min(current_length, null_length)
             
             null_arena[i], null_wheel[i] = get_correlations(
                 spike_counts[:, :min_length],
-                null_session.velocity[:min_length],
-                null_session.wheel_velocity[:min_length],
-                null_session.arena_mask[:min_length],
-                null_session.wheel_mask[:min_length],
+                null_session.oa_speed[:min_length],
+                null_session.wh_speed[:min_length],
+                null_session.oa_running[:min_length],
+                null_session.wh_running[:min_length],
                 filter=False
             )
         except Exception as e:
@@ -209,14 +209,13 @@ def categorise_neurons(all_sessions, alpha=0.05):
             print(f"Skipping session {session.subject_id} - {session.date}: not fully analyzed")
             continue
             
-        oa_sig,_ = fdrcorrection(session.pvals_oa, alpha=0.05)
-        wh_sig,_ = fdrcorrection(session.pvals_wh, alpha=0.05)
+        oa_sig,_ = fdrcorrection(session.p_vals_oa, alpha=0.05)
+        wh_sig,_ = fdrcorrection(session.p_vals_wh, alpha=0.05)
 
         session.context_invariant = oa_sig & wh_sig & (np.sign(session.r_oa) == np.sign(session.r_wh))
         session.arena_only = oa_sig & ~wh_sig
         session.wheel_only = ~oa_sig & wh_sig
-        session.context_switching_oa_pos = oa_sig & wh_sig & (np.sign(session.r_oa) != np.sign(session.r_wh)) & np.sign(session.r_oa)
-        session.context_switching_oa_neg = oa_sig & wh_sig & (np.sign(session.r_oa) != np.sign(session.r_wh)) & np.sign(session.r_oa) == 0
+        session.context_switching = oa_sig & wh_sig & (np.sign(session.r_oa) != np.sign(session.r_wh)) 
         session.non_encoding = ~oa_sig & ~wh_sig
 
         
