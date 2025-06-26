@@ -37,15 +37,37 @@ def load_ONE(exp_kwargs):
     return ONE
 
 
-def get_experiment_path(ONE):
+def get_experiment_path(ONE, dlc_frame_count, cam_fps=60):
     """
     Extract experiment path from ONE data.
     """
 
-    exp_idx = ONE.index[ONE.expDef.isin(['spontaneousActivity'])][0]
-    exp_path = ONE.loc[exp_idx, 'expFolder']
+    exp_indices = ONE.index[ONE.expDef.isin(['spontaneousActivity'])]
 
-    return exp_path
+    print(len(exp_indices))
+    print(exp_indices)
+    if len(exp_indices) == 1:
+        exp_path = ONE.loc[exp_indices[0], 'expFolder']
+        return exp_path
+    
+    else:
+        dlc_duration = dlc_frame_count / cam_fps
+        
+        diffs = []
+
+        for idx in exp_indices:
+            exp_duration = float(ONE.loc[idx, 'expDuration'])
+            diff = abs(exp_duration - dlc_duration)
+            diffs.append(diff)
+            
+        print(diffs)
+        likely_index = np.argmin(diffs)
+        print(likely_index)
+        
+        exp_path = ONE.loc[exp_indices[likely_index], 'expFolder']
+        return exp_path
+    
+
 
 def get_cam_timestamps(exp_kwargs, rigName='poppy-stim'):
     """
@@ -69,13 +91,13 @@ def get_cam_timestamps(exp_kwargs, rigName='poppy-stim'):
     recordings = load_data(data_name_dict=data_name_dict,**exp_kwargs)
     stim_recordings = recordings[recordings['rigName'] == rigName]
     timestamps = stim_recordings['topCam'].iloc[0]['camera'].times
-    exp_onset = np.where(timestamps >=0)[0][0]
+    exp_onset= np.where(timestamps >=0)[0][0]
     timestamps[:exp_onset] = np.nan
     cam_timestamps = timestamps.flatten()
     
     return exp_onset, cam_timestamps
 
-def create_time_bins(cam_timestamps, exp_onset, target_freq=10):
+def create_time_bins(cam_timestamps, exp_onset, rotary_timestamps, target_freq=10):
     """
     Create time bins for temporal alignment.
     
@@ -95,9 +117,16 @@ def create_time_bins(cam_timestamps, exp_onset, target_freq=10):
     bin_width : float
     """
     bin_width = 1.0 / target_freq
-    bin_edges = np.arange(cam_timestamps[exp_onset], cam_timestamps[-1], bin_width)
+
+    end_time = cam_timestamps[-1]
+    
+    # If rotary data exists and ends earlier, use that instead
+    if rotary_timestamps is not None and rotary_timestamps[-1] < end_time:
+        end_time = rotary_timestamps[-1]
+    
+    bin_edges = np.arange(cam_timestamps[exp_onset], end_time, bin_width)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-    return bin_edges, bin_centers, bin_width #check if we need to return all three
+    return bin_edges, bin_centers, bin_width
 
 def temporally_align_variable(variable, bin_centers, timestamps):
     """Align any data stream, only interpolate within valid range"""
@@ -171,10 +200,10 @@ def preprocess_dlc_data(dlc_df, quality_thresh = 0.90, selected_bodyparts = ['ne
     for bodypart in selected_bodyparts:
         processed_x[bodypart] = processed_x[bodypart].interpolate(method='linear', limit=max_gap)
         processed_y[bodypart] = processed_y[bodypart].interpolate(method='linear', limit=max_gap)
-        total_nans_x = processed_x[bodypart].isna().sum()
-        total_nans_y = processed_y[bodypart].isna().sum()
-        print(f"{bodypart}: {total_nans_x} NaN frames for x ({total_nans_x/len(processed_x)*100:.1f}%)")
-        print(f"{bodypart}: {total_nans_y} NaN frames for y ({total_nans_y/len(processed_x)*100:.1f}%)")
+        #total_nans_x = processed_x[bodypart].isna().sum()
+        #total_nans_y = processed_y[bodypart].isna().sum()
+        #print(f"{bodypart}: {total_nans_x} NaN frames for x ({total_nans_x/len(processed_x)*100:.1f}%)")
+        #print(f"{bodypart}: {total_nans_y} NaN frames for y ({total_nans_y/len(processed_x)*100:.1f}%)")
 
         
     return processed_x, processed_y

@@ -26,28 +26,30 @@ def load_and_process_session(subject_id, date, target_freq=None):
 
     # load data
     ONE = load_ONE(exp_kwargs)
-    exp_path = get_experiment_path(ONE)
-    exp_onset, cam_timestamps = get_cam_timestamps(exp_kwargs, rigName='poppy-stim')
     dlc_df = get_dlc_df(subject_id, date)
+    exp_path = get_experiment_path(ONE, dlc_frame_count= len(dlc_df), cam_fps=60)
+    exp_onset, cam_timestamps = get_cam_timestamps(exp_kwargs, rigName='poppy-stim')
     bodypart_x, bodypart_y = preprocess_dlc_data(dlc_df)
     x, y = calculate_median_position(bodypart_x, bodypart_y)
     rotary_timestamps, rotary_position = get_rotary_position(exp_path)
-
-    # temporally align variables
-    bin_edges, bin_centers, bin_width = create_time_bins(cam_timestamps, exp_onset, target_freq=target_freq)
-    rotary_position = temporally_align_variable(rotary_position, bin_centers, rotary_timestamps)
     
+    # temporally align variables
+    bin_edges, bin_centers, bin_width = create_time_bins(cam_timestamps, exp_onset, rotary_timestamps, target_freq=target_freq)
+    rotary_position = temporally_align_variable(rotary_position, bin_centers, rotary_timestamps)
     x = temporally_align_variable(x, bin_centers, cam_timestamps)
     y = temporally_align_variable(y, bin_centers, cam_timestamps)
 
 
     # define context
     frame, roi_x, roi_y, radius = get_ROI(subject_id, date)
-    plot_ROI(frame, roi_x, roi_y, radius, subject_id, date)
+    #plot_ROI(frame, roi_x, roi_y, radius, subject_id, date)
     
     # compute speed in either context 
     oa_speed = calculate_oa_speed(x, y, bin_width)
     wh_speed = calculate_wh_speed(rotary_position, bin_width)
+
+    print(np.where(np.isnan(wh_speed)))
+
     
     
     # identify bouts of running in either context
@@ -123,9 +125,10 @@ def analyze_single_session(session):
         session.spike_counts, 
         session.oa_speed, 
         session.wh_speed, 
-        session.oa_running, 
-        session.wh_running)
-    
+        session.oa_pos, 
+        session.wh_pos
+    )
+
     # Cross-context correlation
     valid = ~(np.isnan(r_oa) | np.isnan(r_wh))
     r_oa_wh = np.corrcoef(r_oa[valid], r_wh[valid])[0, 1] if np.sum(valid) > 1 else np.nan
@@ -133,8 +136,8 @@ def analyze_single_session(session):
     # Stability
     r_oa_first_half, r_oa_second_half, r_wh_first_half, r_wh_second_half, oa_stability, wh_stability = cross_validate_correlations(
         session.spike_counts,
-        session.oa_running,
-        session.wh_running,
+        session.oa_pos,
+        session.wh_pos,
         session.oa_speed,
         session.wh_speed, 
     )
@@ -159,7 +162,7 @@ def analyze_multiple_sessions(session_list, target_freq=10):
     all_sessions = []
     for subject_id, date in session_list:
         try:
-            session_data = load_and_process_session(subject_id, date, target_freq=10)
+            session_data = load_and_process_session(subject_id, date, target_freq=target_freq)
             session_data = analyze_single_session(session_data)
             all_sessions.append(session_data)
             print(f"Loaded and analyzed: {subject_id} - {date}")

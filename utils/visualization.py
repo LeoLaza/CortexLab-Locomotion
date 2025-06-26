@@ -428,8 +428,8 @@ def plot_single_session(session, w_start=0, w_end=1200):
     y = session.y
     oa_speed= session.oa_speed
     wh_speed= session.wh_speed
-    oa_running = session.oa_running
-    wh_running= session.wh_running
+    oa_pos = session.oa_pos
+    wh_pos= session.wh_pos
     r_oa= session.r_oa
     r_wh = session.r_wh
     r_oa_first_half =session.r_oa_first_half
@@ -442,12 +442,11 @@ def plot_single_session(session, w_start=0, w_end=1200):
     plt.hist(oa_speed[oa_speed > 0], bins=100)
     plt.xlabel('Velocity')
     plt.ylabel('Count')
-    plt.axvline(1.0, color='g', label='Threshold')
     plt.legend()
-    plot_masked_positions(x, y, oa_running, wh_running)
-    plot_masked_positions(x[w_start:w_end], y[w_start:w_end], oa_running[w_start:w_end], wh_running[w_start:w_end])
-    plot_sorted_spike_counts(r_oa, oa_speed, wh_speed, wh_running, oa_running, spike_counts, w_start, w_end)
-    plot_sorted_spike_counts(r_wh, oa_speed, wh_speed, wh_running, oa_running, spike_counts, w_start, w_end)
+    plot_masked_positions(x, y, oa_pos, wh_pos)
+    #plot_masked_positions(x[w_start:w_end], y[w_start:w_end], oa_pos[w_start:w_end], wh_pos[w_start:w_end])
+    plot_sorted_spike_counts(r_oa, oa_speed, wh_speed, wh_pos, oa_pos, spike_counts, w_start, w_end)
+    plot_sorted_spike_counts(r_wh, oa_speed, wh_speed, wh_pos, oa_pos, spike_counts, w_start, w_end)
     
 
     plot_correlation_histogram(r_oa)

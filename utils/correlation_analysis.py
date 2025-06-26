@@ -13,7 +13,7 @@ import numpy as np
 from scipy.stats import zscore
 from sklearn.decomposition import PCA
 
-def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask, filter=True):
+def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
     """
     Compute correlations between neural activity and velocity in each context.
     
@@ -39,22 +39,30 @@ def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask, filter=
     wheel_corrs : array
         Neural-velocity correlations during wheel periods
     """
-    r_oa = np.zeros(spike_counts.shape[0])
-    r_wh = np.zeros(spike_counts.shape[0])
+    n_neurons = spike_counts.shape[0]
 
-    for i in range(spike_counts.shape[0]):
+    
+    r_oa = np.full(n_neurons, np.nan)
+    r_wh = np.full(n_neurons, np.nan)
+
+    oa_var = np.var(spike_counts[:, oa_mask], axis=1)
+    wh_var = np.var(spike_counts[:, wh_mask], axis=1)
+
+  
+    
+    # Remove neurons with zero variance in any split
+    good_neurons = ~(oa_var == 0) & ~(wh_var == 0) 
+    good_indices = np.where(good_neurons)[0]
+
+   
+
+    for i in good_indices:
             # Free running correlation
             r_oa[i] = np.corrcoef(oa_speed[oa_mask], spike_counts[i, oa_mask])[0, 1]
         
             # Wheel running correlation
             r_wh[i] = np.corrcoef(wh_speed[wh_mask], spike_counts[i, wh_mask])[0, 1]
 
-
-    if filter:
-        r_nan =  np.isnan(r_oa) | np.isnan(r_wh)
-        r_oa = r_oa[~r_nan]
-        r_wh = r_wh[~r_nan]
-        
 
     return r_oa, r_wh
 

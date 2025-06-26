@@ -48,13 +48,6 @@ def cross_validate_correlations(spike_counts, oa_mask, wh_mask, oa_speed, wh_spe
     """
     midpoint =  spike_counts.shape[1] // split
 
-    print("=== Cross-validation debug ===")
-    print(f"half point: {midpoint}")
-    print(f"First half wheel running: {np.sum(wh_mask[:midpoint])}")
-    print(f"Second half wheel running: {np.sum(wh_mask[midpoint:])}")
-    print(f"First half wheel speed range: {np.min(wh_speed[:midpoint]):.2f} to {np.max(wh_speed[:midpoint]):.2f}")
-    print(f"Second half wheel speed range: {np.min(wh_speed[midpoint:]):.2f} to {np.max(wh_speed[midpoint:]):.2f}")
-
     oa_first_half_idx = np.where(oa_mask[:midpoint])[0]
     oa_second_half_idx = np.where(oa_mask[midpoint:])[0] + midpoint
     wh_first_half_idx = np.where(wh_mask[:midpoint])[0]
@@ -130,7 +123,6 @@ def compute_null_distributions_for_session(session, null_sessions):
                 null_session.wh_speed[:min_length],
                 null_session.oa_running[:min_length],
                 null_session.wh_running[:min_length],
-                filter=False
             )
         except Exception as e:
             print(f"Error computing null for session {i}: {e}")

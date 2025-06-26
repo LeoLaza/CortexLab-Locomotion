@@ -36,8 +36,8 @@ def get_ROI(subject_id, date):
             xy_list.append((x, y))
             r_list.append(r)
 
-        if frame_idx % 10 == 0:
-            print(f"Processing frame {frame_idx}/10")
+        #if frame_idx % 10 == 0:
+            #print(f"Processing frame {frame_idx}/10")
 
     cap.release()
     cv2.destroyAllWindows()

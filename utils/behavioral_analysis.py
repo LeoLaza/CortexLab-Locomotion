@@ -49,7 +49,7 @@ def calculate_oa_speed(x, y, bin_width):
     oa_speed_pix = distances / bin_width
     conversion_factor = 0.07 
     oa_speed = oa_speed_pix * conversion_factor
-    oa_speed = gaussian_filter1d(oa_speed, 3)
+    oa_speed = gaussian_filter1d(oa_speed, 6)
     oa_speed = np.concatenate(([oa_speed[0] if len(oa_speed) > 0 else 0], oa_speed)) 
     return oa_speed
 
@@ -77,7 +77,7 @@ def calculate_wh_speed(rotary_position, bin_width, wh_diameter=15):
     wh_circumference = np.pi * wh_diameter
     linear_distance_cm = np.diff(rotary_position) * wh_circumference / 360 
     wh_speed = np.abs(linear_distance_cm / bin_width) 
-    wh_speed = gaussian_filter1d(wh_speed, 3)
+    wh_speed = gaussian_filter1d(wh_speed, 6)
     wh_speed = np.concatenate(([wh_speed[0] if len(wh_speed) > 0 else 0], wh_speed))
     return wh_speed
 
@@ -128,7 +128,7 @@ def get_position_masks (x, y, center_x, center_y, radius, subject_id):
     return oa_pos, wh_pos
 
 
-def temporal_buffer(pos_mask, buffer_size=30):
+def temporal_buffer(pos_mask, buffer_size=10):
     """
     Smooth context transitions by buffering brief context switches.
     
@@ -176,6 +176,8 @@ def get_speed_masks(oa_speed, wh_speed, oa_pos, wh_pos, oa_thresh = 2.0, wh_thre
         True during wheel running periods
     """
 
+    oa_speed = oa_speed.copy()
+    wh_speed = wh_speed.copy()
 
     oa_speed[~oa_pos] = 0  
     
