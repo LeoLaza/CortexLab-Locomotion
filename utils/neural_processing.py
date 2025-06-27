@@ -43,7 +43,7 @@ def normalize_spike_counts(spike_counts):
     spike_counts_norm = (spike_counts - np.mean(spike_counts, axis=1, keepdims=True)) / np.std(spike_counts, axis=1, keepdims=True)
     return spike_counts_norm
 
-
+### ideally do this filtering only where it is needed
 def filter_spike_counts(spike_counts, arena_mask, wheel_mask):
      """
     Remove neurons with zero variance in either behavioral context.

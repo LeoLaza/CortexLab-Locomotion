@@ -39,6 +39,8 @@ def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
     wheel_corrs : array
         Neural-velocity correlations during wheel periods
     """
+    
+    # why does this not work if I use filtered_spike_counts, INVESTIGATE
     n_neurons = spike_counts.shape[0]
 
     
@@ -95,3 +97,4 @@ def run_PCA(spike_counts):
     pctrajectories = pca.fit_transform(binsxneurons)
 
     return pctrajectories
+

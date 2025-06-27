@@ -627,3 +627,83 @@ def plot_dlc_analyses(dlc_df, quality_thresh = 0.90, selected_bodyparts = ['neck
     
     plot_dlc_pre_post(raw_position_changes, processed_position_changes, raw_median_change, processed_median_change, selected_bodyparts, w_start, w_end)
     
+
+def plot_reliability_stability(all_sessions):
+    
+    plt.rcParams['font.family'] = 'Arial'
+    plt.rcParams['font.size'] = 14
+    plt.rcParams['axes.linewidth'] = 1.5
+    plt.rcParams['xtick.major.width'] = 1.5
+    plt.rcParams['ytick.major.width'] = 1.5
+    plt.rcParams['xtick.major.size'] = 6
+    plt.rcParams['ytick.major.size'] = 6
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 7), dpi=300)
+
+    reliability_values = []
+    stability_values = []
+    brain_regions = []
+
+    for session in all_sessions:
+        
+        reliability_values.append(session.reliability)
+        stability_values.append(session.stability)
+        
+    
+        if session.subject_id[:2] == 'EB':
+            brain_regions.append('Hippocampus')
+        else:
+            brain_regions.append('Secondary Motor Cortex')
+
+
+    reliability_values = np.array(reliability_values)
+    stability_values = np.array(stability_values)
+    brain_regions = np.array(brain_regions)
+
+
+    colors = {
+        'Hippocampus':"#132B97",  
+        'Secondary Motor Cortex':"#690B0B" 
+    }  
+    for region in ['Hippocampus', 'Secondary Motor Cortex']:
+        mask = brain_regions == region
+        
+        ax.scatter(reliability_values[mask], 
+                stability_values[mask], 
+                c=colors[region],
+                s=100,  
+                alpha=0.7,  
+                edgecolors='none',  
+                linewidth=0.5,
+                label=region,
+                zorder=3)
+
+    ax.plot([0, 1], [0, 1], 'k-', linewidth=1.5, alpha=0.5, zorder=1)
+
+    ax.set_xlim(-0.10, 1.05)
+    ax.set_ylim(-0.10, 1.05)
+
+    ax.set_xlabel('reliability within context', fontsize=16)
+    ax.set_ylabel('stability between contexts', fontsize=16)
+
+    # Add legend
+    legend = ax.legend(loc='upper left', 
+                    frameon=True, 
+                    fancybox=False,
+                    edgecolor='black',
+                    fontsize=12)
+    legend.get_frame().set_linewidth(0.5)
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Set tick parameters
+    ax.tick_params(axis='both', which='major', labelsize=12, width=1.5, length=6)
+
+
+    ax.set_aspect('equal', adjustable='box')
+
+    plt.tight_layout()
+
+    
+

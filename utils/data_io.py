@@ -37,18 +37,27 @@ def load_ONE(exp_kwargs):
     return ONE
 
 
-def get_experiment_path(ONE, dlc_frame_count, cam_fps=60):
+def get_experiment_identifiers(ONE=None, exp_kwargs=None, dlc_frame_count=None, cam_fps=60):
     """
     Extract experiment path from ONE data.
     """
 
-    exp_indices = ONE.index[ONE.expDef.isin(['spontaneousActivity'])]
+    if ONE is None:
+        if exp_kwargs is None:
+            raise ValueError("Either ONE or exp_kwargs must be provided")
+        ONE = load_ONE
 
-    print(len(exp_indices))
-    print(exp_indices)
+    exp_indices = ONE.index[(ONE.expDef == 'spontaneousActivity') & 
+                           (ONE.rigName == 'poppy-stim')]
+
+
     if len(exp_indices) == 1:
-        exp_path = ONE.loc[exp_indices[0], 'expFolder']
-        return exp_path
+        exp_idx = exp_indices[0]
+        #exp_num = ONE.loc[idx, "expNum"]
+        exp_path = ONE.loc[exp_idx, 'expFolder']
+
+
+        return  exp_path, exp_idx
     
     else:
         dlc_duration = dlc_frame_count / cam_fps
@@ -60,37 +69,38 @@ def get_experiment_path(ONE, dlc_frame_count, cam_fps=60):
             diff = abs(exp_duration - dlc_duration)
             diffs.append(diff)
             
-        print(diffs)
-        likely_index = np.argmin(diffs)
-        print(likely_index)
-        
-        exp_path = ONE.loc[exp_indices[likely_index], 'expFolder']
-        return exp_path
-    
+
+        exp_idx = exp_indices[np.argmin(diffs)]
+        #exp_num = ONE.loc[idx, 'expNumber']
+        exp_path = ONE.loc[exp_idx, 'expFolder']
+
+        return exp_path, exp_idx
 
 
-def get_cam_timestamps(exp_kwargs, rigName='poppy-stim'):
-    """
-    Load camera timestamps from ONE system.
+def get_cam_timestamps(exp_kwargs=None,ONE=None, exp_idx=None, dlc_frame_count=None):
+
+    if exp_kwargs is None:
+            raise ValueError("Exp_kwargs must be provided")
     
-    Parameters:
-    -----------
-    exp_kwargs : dict
-        Experiment parameters (subject, expDate)
-    rigName : str
-        Rig identifier 
+    if exp_idx is None:
+        if ONE is None:
+            ONE = load_ONE(exp_kwargs)
+        _, exp_idx = get_experiment_identifiers(
+            ONE=ONE, 
+            exp_kwargs=exp_kwargs, 
+            dlc_frame_count=dlc_frame_count
+        )
         
-    Returns:
-    --------
-    exp_onset : int
-        Index of camera frame when experiment starts
-    cam_timestamps : array
-        Timestamps of camera recording
-    """
-    data_name_dict = {'topCam':{'camera':['times','ROIMotionEnergy']}}
-    recordings = load_data(data_name_dict=data_name_dict,**exp_kwargs)
-    stim_recordings = recordings[recordings['rigName'] == rigName]
-    timestamps = stim_recordings['topCam'].iloc[0]['camera'].times
+    cam_dict = {'topCam': {'camera': ['times', 'ROIMotionEnergy']}}
+
+    cam_data = load_data(data_name_dict=cam_dict,**exp_kwargs)
+    poppy_cam_data = cam_data[cam_data['rigName'] == "poppy-stim"]
+    
+    
+    timestamps = poppy_cam_data.loc[exp_idx, 'topCam']['camera'].times
+    
+    
+
     exp_onset= np.where(timestamps >=0)[0][0]
     timestamps[:exp_onset] = np.nan
     cam_timestamps = timestamps.flatten()
@@ -209,47 +219,37 @@ def preprocess_dlc_data(dlc_df, quality_thresh = 0.90, selected_bodyparts = ['ne
     return processed_x, processed_y
 
 
-def load_probes(exp_kwargs, rigName='poppy-stim'):
-    """
-    Load spike data from neuropixel probes.
+def load_probes(exp_kwargs=None, ONE=None, exp_idx=None, dlc_frame_count=None):
+
+    if exp_kwargs is None:
+            raise ValueError("Exp_kwargs must be provided")
     
-    Parameters:
-    -----------
-    exp_kwargs : dict
-        Experiment parameters
-    rigName : str
-        Rig identifier
-        
-    Returns:
-    --------
-    spikes_0 : array or None
-        Spike times from probe 0
-    clusters_0 : array or None
-        Cluster IDs from probe 0
-    spikes_1 : array or None
-        Spike times from probe 1
-    clusters_1 : array or None
-        Cluster IDs from probe 1
-    """
+    if exp_idx is None:
+        if ONE is None:
+            ONE = load_ONE(exp_kwargs)
+        _, exp_idx = get_experiment_identifiers(
+            ONE=ONE, 
+            exp_kwargs=exp_kwargs, 
+            dlc_frame_count=dlc_frame_count
+        )
 
     ephys_dict = {'spikes':'all','clusters':'all'}
-    
-    data_name_dict = {'probe0':ephys_dict,'probe1':ephys_dict}
-    
-    recordings = load_data(data_name_dict=data_name_dict,**exp_kwargs)
-    stim_recordings = recordings[recordings['rigName'] == rigName]
+    probe_dict = {'probe0':ephys_dict,'probe1':ephys_dict}
+    spike_data = load_data(data_name_dict=probe_dict,**exp_kwargs)
+    poppy_spike_data = spike_data[spike_data['rigName'] == "poppy-stim"]
     
     try:
-        spikes_0 = stim_recordings['probe0'].iloc[0]['spikes']['times'] 
-        clusters_0 = stim_recordings['probe0'].iloc[0]['spikes']['clusters']  
+        spikes_0 = poppy_spike_data.loc[exp_idx, 'probe0'].spikes.times  
+        clusters_0 = poppy_spike_data.loc[exp_idx, 'probe0'].spikes.clusters  
+        
     except (KeyError, IndexError, AttributeError):
         spikes_0 = None
         clusters_0 = None
         print('No probe0 data found')
     
     try:
-        spikes_1 = stim_recordings['probe1'].iloc[0]['spikes']['times']  
-        clusters_1 = stim_recordings['probe1'].iloc[0]['spikes']['clusters']  
+        spikes_1 = poppy_spike_data.loc[exp_idx, 'probe1'].spikes.times  
+        clusters_1 = poppy_spike_data.loc[exp_idx, 'probe1'].spikes.clusters 
     except (KeyError, IndexError, AttributeError):
         spikes_1 = None
         clusters_1 = None
@@ -258,24 +258,19 @@ def load_probes(exp_kwargs, rigName='poppy-stim'):
     return spikes_0, clusters_0, spikes_1, clusters_1
 
 
-def get_rotary_position(exp_folder):
-    """
-    Load and process rotary encoder data.
-    
-    Parameters:
-    -----------
-    exp_folder : str
-        Experiment folder path
-    bin_centers : array
-        Time bin centers for interpolation
-        
-    Returns:
-    --------
-    rotary_timestamps : array or None
-        Rotary encoder timestamps
-    rotary_position : array or None
-        Processed wheel position data
-    """
+def get_rotary_position(exp_kwargs=None, exp_folder=None, dlc_frame_count=None):
+
+    if exp_folder is None:
+        if exp_kwargs is None:
+            raise ValueError("Need to provide either exp_folder or exp_kwargs")
+        else:
+            ONE = load_ONE(exp_kwargs)
+            exp_folder, _ = get_experiment_identifiers(
+                ONE=ONE, 
+                exp_kwargs=exp_kwargs, 
+                dlc_frame_count=dlc_frame_count
+            )
+
     try:
         TICKS_PER_CYCLE = 1024
         rotary = np.load(os.path.join(exp_folder, 'rotaryEncoder.raw.npy'), allow_pickle=True)

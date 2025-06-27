@@ -8,7 +8,6 @@ in mice during bouts of locomotion in different contexts.
 from .neural_processing import (
     get_spike_hist,
     normalize_spike_counts, 
-    filter_spike_counts
 )
 
 from .behavioral_analysis import (
@@ -28,10 +27,7 @@ from .correlation_analysis import (
 
 from .statistical_testing import (
     cross_validate_correlations,
-    compute_null_distributions_for_session,
-    compute_p_values_from_null,
-    add_p_values_to_session,
-    categorise_neurons
+    
 )
 
 from .visualization import (
@@ -51,7 +47,7 @@ from .visualization import (
 
 from .data_io import (
     load_ONE,
-    get_experiment_path,
+    get_experiment_identifiers,
     get_cam_timestamps,
     create_time_bins,
     temporally_align_variable,
@@ -68,9 +64,28 @@ from .roi_detection import (
 )
 
 from .pipeline import (
-    load_and_process_session,
+    load_behavioral_data,
+    load_session_data,
     analyze_single_session,
     analyze_multiple_sessions,
+    compute_null_distributions_for_session,
+    compute_p_values_from_null,
+    add_p_values_to_session,
+    categorise_neurons
+)
+
+from  .decoding_analysis import(
+    split_data_for_decoding,
+    train_decoder,
+    test_decoder_within_context,
+    test_decoder_cross_context,
+    compare_within_cross_context_decoding,
+    calculate_weight_vector_cosine_similarity,
+    plot_weights, 
+    calculate_r2_leaveout,
+
+
+
 )
 
 __version__ = "0.1.0"
