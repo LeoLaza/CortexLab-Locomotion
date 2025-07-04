@@ -5,10 +5,6 @@ A modular Python package for analyzing neural activity from chronic neuropixel r
 in mice during bouts of locomotion in different contexts.
 """
 
-from .neural_processing import (
-    get_spike_hist,
-    normalize_spike_counts, 
-)
 
 from .behavioral_analysis import (
     calculate_median_position,
@@ -16,36 +12,24 @@ from .behavioral_analysis import (
     calculate_wh_speed,
     get_position_masks,
     temporal_buffer,
-    get_speed_masks,
-    detect_bouts
+    get_ROI,
+    preprocess_frame, 
 )
 
 from .correlation_analysis import (
-    get_correlations,
-    get_cross_context_correlations
+    get_speed_correlations,
+    get_cross_context_correlations,
+    get_split_half_correlations,
+    get_reliability_stability
 )
 
-from .statistical_testing import (
-    cross_validate_correlations,
-    
+from .decoding_analysis import(
+    split_for_decoding,
+    train_model,
+    compute_leaveout_analysis,
 )
 
-from .visualization import (
-    plot_correlation_histogram,
-    plot_sorted_spike_counts,
-    plot_wheel_arena_corr,
-    plot_cross_validation,
-    plot_masked_positions,
-    plot_single_session,
-    plot_all_sessions,
-    plot_categories,
-    plot_likelihood_distributions,
-    plot_position_changes,
-    plot_dlc_pre_post,
-    plot_dlc_analyses
-)
-
-from .data_io import (
+from .data_loading_and_preprocessing import(
     load_ONE,
     get_experiment_identifiers,
     get_cam_timestamps,
@@ -55,38 +39,26 @@ from .data_io import (
     preprocess_dlc_data,
     load_probes,
     get_rotary_position,
+    get_spike_hist,
+    normalize_spike_counts, 
+    filter_spike_counts
 )
 
-from .roi_detection import (
-    get_ROI,
-    preprocess_frame,
-    plot_ROI
+from .statistical_testing import (
+    run_permutation_test,
+    categorise_neurons,
 )
 
-from .pipeline import (
-    load_behavioral_data,
-    load_session_data,
-    analyze_single_session,
-    analyze_multiple_sessions,
-    compute_null_distributions_for_session,
-    compute_p_values_from_null,
-    add_p_values_to_session,
-    categorise_neurons
+from .visualization import (
+    plot_correlation_histogram,
+    plot_cross_context_correlation,
+    plot_raster_pos_neg,
+    plot_reliability,
+    plot_masked_positions,
 )
 
-from  .decoding_analysis import(
-    split_data_for_decoding,
-    train_decoder,
-    test_decoder_within_context,
-    test_decoder_cross_context,
-    compare_within_cross_context_decoding,
-    calculate_weight_vector_cosine_similarity,
-    plot_weights, 
-    calculate_r2_leaveout,
 
 
 
-)
-
-__version__ = "0.1.0"
+__version__ = "2.1.0"
 __author__ = "Leonard Lazarevic"

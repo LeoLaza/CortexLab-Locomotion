@@ -1,45 +1,10 @@
-"""
-Neural-behavioral correlation analysis functions.
-
-This module handles:
-- Computing correlations between neural activity and locomotion
-- Cross-context correlation comparisons
-"""
-
-
-
 
 import numpy as np
 from scipy.stats import zscore
 from sklearn.decomposition import PCA
 
-def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
-    """
-    Compute correlations between neural activity and velocity in each context.
-    
-    Parameters:
-    -----------
-    spike_counts_filtered : array, shape (n_neurons, n_time_bins)
-        Preprocessed spike count matrix
-    velocity : array
-        Arena velocity in cm/s
-    wheel_velocity : array
-        Wheel velocity in cm/s
-    arena_mask : array, bool
-        Boolean mask for arena periods
-    wheel_mask : array, bool
-        Boolean mask for wheel periods
-    filter : bool
-        Whether to filter out neurons with NaN correlations
-        
-    Returns:
-    --------
-    arena_corrs : array
-        Neural-velocity correlations during arena periods
-    wheel_corrs : array
-        Neural-velocity correlations during wheel periods
-    """
-    
+def get_speed_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
+
     # why does this not work if I use filtered_spike_counts, INVESTIGATE
     n_neurons = spike_counts.shape[0]
 
@@ -69,32 +34,70 @@ def get_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
     return r_oa, r_wh
 
 def get_cross_context_correlations(r_oa, r_wh):
-    """
-    Compute correlation between neural responses across contexts.
-    
-    Parameters:
-    -----------
-    arena_corrs : array
-        Neural-velocity correlations in arena
-    wheel_corrs : array
-        Neural-velocity correlations on wheel
-        
-    Returns:
-    --------
-    cross_context_corr : float
-        Correlation between arena and wheel neural responses
-    """
 
     valid = ~(np.isnan(r_oa) | np.isnan(r_wh))
     r_oa_wh = np.corrcoef(r_oa[valid], r_wh[valid])[0,1]
 
     return r_oa_wh
 
-def run_PCA(spike_counts):
-    binsxneurons = spike_counts.T
-    binsxneurons = zscore(binsxneurons, axis=0)
-    pca = PCA(n_components = 10)
-    pctrajectories = pca.fit_transform(binsxneurons)
 
-    return pctrajectories
 
+def get_split_half_correlations(spike_counts, speed_arena, speed_wheel, mask_arena, mask_wheel, split = 2):
+    
+    midpoint =  spike_counts.shape[1] // split
+
+    arena_half1_idx = np.where(mask_arena[:midpoint])[0]
+    arena_half2_idx = np.where(mask_arena[midpoint:])[0] + midpoint
+    wheel_half1_idx = np.where(mask_wheel[:midpoint])[0]
+    wheel_half2_idx = np.where(mask_wheel[midpoint:])[0] + midpoint
+
+    arena_half1_var = np.var(spike_counts[:, arena_half1_idx], axis=1)
+    arena_half2_var = np.var(spike_counts[:, arena_half2_idx ], axis=1)
+    wheel_half1_var = np.var(spike_counts[:, wheel_half1_idx], axis=1)
+    wheel_half2_var = np.var(spike_counts[:, wheel_half2_idx], axis=1)
+    
+    # Remove neurons with zero variance in any split
+    good_neurons = ~((arena_half1_var == 0) | (arena_half2_var == 0) | 
+                     (wheel_half1_var == 0) | (wheel_half2_var  == 0))
+    
+    spike_counts = spike_counts[good_neurons, :]
+    n_neurons = spike_counts.shape[0]
+
+    corr_arena_half1 = np.zeros(n_neurons)
+    corr_arena_half2 = np.zeros(n_neurons)
+    corr_wheel_half1 = np.zeros(n_neurons)
+    corr_wheel_half2 = np.zeros(n_neurons)
+
+    for i in range(n_neurons):
+        try:
+            corr_arena_half1[i] = np.corrcoef(spike_counts[i,arena_half1_idx], speed_arena[arena_half1_idx])[0,1]
+            corr_arena_half2[i] = np.corrcoef (spike_counts[i,arena_half2_idx], speed_arena[arena_half2_idx])[0,1]
+            corr_wheel_half1[i] = np.corrcoef(spike_counts[i,wheel_half1_idx], speed_wheel[wheel_half1_idx])[0,1]
+            corr_wheel_half2[i] = np.corrcoef(spike_counts[i,wheel_half2_idx ], speed_wheel[wheel_half2_idx])[0,1]
+
+        except Exception as e:
+            pass
+
+    
+    reliability_arena = np.corrcoef(corr_arena_half1, corr_arena_half2)[0,1]
+    reliability_wheel = np.corrcoef(corr_wheel_half1, corr_wheel_half2)[0,1]
+
+    return corr_arena_half1, corr_arena_half2, corr_wheel_half1, corr_wheel_half2, reliability_arena, reliability_wheel
+
+def get_reliability_stability(corr_arena_half1, corr_arena_half2, corr_wheel_half1, corr_wheel_half2, reliability_arena, reliability_wheel):
+
+        reliability = np.sqrt(reliability_arena * reliability_wheel) 
+
+
+        corr_arena1_wheel2 = np.corrcoef(corr_arena_half1, corr_wheel_half2) [0,1]
+        corr_wheel1_arena2 = np.corrcoef(corr_wheel_half1, corr_arena_half2) [0,1]
+
+        # Fisher Transform and Compute Mean 
+        z1 = np.arctanh(corr_arena1_wheel2)
+        z2 = np.arctanh(corr_wheel1_arena2)
+        z_mean = (z1 + z2 ) / 2
+
+        # reverse transform mean
+        stability = np.tanh(z_mean)
+
+        return reliability, stability 
