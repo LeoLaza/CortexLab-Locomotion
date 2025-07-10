@@ -14,6 +14,7 @@ import os
 import glob
 from scipy.io import loadmat
 from pinkrigs_tools.dataset.query import load_data
+from scipy.ndimage import gaussian_filter1d
 
 def load_ONE(exp_kwargs):
     """
@@ -191,12 +192,8 @@ def preprocess_dlc_data(dlc_df, quality_thresh = 0.90, selected_bodyparts = ['ne
         processed_y.loc[false_positive, bodypart] = np.nan
 
     for bodypart in selected_bodyparts:
-        processed_x[bodypart] = processed_x[bodypart].interpolate(method='linear', limit=max_gap)
-        processed_y[bodypart] = processed_y[bodypart].interpolate(method='linear', limit=max_gap)
-        #total_nans_x = processed_x[bodypart].isna().sum()
-        #total_nans_y = processed_y[bodypart].isna().sum()
-        #print(f"{bodypart}: {total_nans_x} NaN frames for x ({total_nans_x/len(processed_x)*100:.1f}%)")
-        #print(f"{bodypart}: {total_nans_y} NaN frames for y ({total_nans_y/len(processed_x)*100:.1f}%)")
+        processed_x[bodypart] = processed_x[bodypart].interpolate(method='linear')
+        processed_y[bodypart] = processed_y[bodypart].interpolate(method='linear')
 
         
     return processed_x, processed_y
@@ -327,3 +324,4 @@ def filter_spike_counts(spike_counts, arena_mask, wheel_mask):
      spike_counts = spike_counts[~zero_var, :]
 
      return spike_counts
+

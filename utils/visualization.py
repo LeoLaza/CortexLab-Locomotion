@@ -360,7 +360,25 @@ def plot_reliability_stability(all_session_results):
     plt.tight_layout()
 
 
-def plot_decoding_comparison(measured_speed, wc_pred_speed, cc_pred_speed, w_start, w_end):
+
+### DECODING ###
+
+def plot_weight_correlation(weights_arena, weights_wheel, color="#009980"):
+
+    fig, ax = plt.subplots(figsize=(3, 3))
+    ax.scatter(weights_arena, weights_wheel, alpha=0.5, color=color, zorder=2)
+    ax.set_xlabel('weights Arena', fontsize=10)
+    ax.set_ylabel('weights Wheel', fontsize=10)
+    ax.plot([-0.5, 0.7], [-0.5, 0.7], 'k-', linewidth=1.5, alpha=0.5, zorder=1)
+    ax.set_xlim(-0.5, 0.7)
+    ax.set_ylim(-0.5, 0.7)
+    ax.set_xticks(np.arange(-0.5, 0.51, 0.5))  
+    ax.set_yticks(np.arange(-0.5, 0.51, 0.5))
+    ax.tick_params(axis='both', labelsize=10)
+    ax.spines[['right', 'top']].set_visible(False)
+    plt.show()
+     
+def plot_decoding_comparison(measured_speed, wc_pred_speed, cc_pred_speed, performance_within, performance_between, w_start, w_end, color="#009980"):
                 
             # Create figure
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 12), 
@@ -368,37 +386,40 @@ def plot_decoding_comparison(measured_speed, wc_pred_speed, cc_pred_speed, w_sta
                                                 sharex=True)
                 
             # Plot velocities
-            ax1.plot(measured_speed[w_start:w_end], color='darkgreen', alpha=0.8)
+            ax1.plot(measured_speed[w_start:w_end], color=color, alpha=0.8)
             ax1.set_xticklabels([])
             ax1.set_xticks([])
-            ax1.set_yticks([])
-            ax1.spines['top'].set_visible(False)
-            ax1.spines['right'].set_visible(False)
-            ax1.spines['bottom'].set_visible(False)
-            ax1.spines['left'].set_visible(False)
+            #ax1.set_yticks([])
+            #ax1.spines['top'].set_visible(False)
+            #ax1.spines['right'].set_visible(False)
+            #ax1.spines['bottom'].set_visible(False)
+            #ax1.spines['left'].set_visible(False)
             ax1.set_ylabel('Measured', color='black', fontsize=18, weight="bold")
+            ax1.set_title(f'within:{performance_within:.2f}-between:{performance_between:.2f}', fontsize=18)
 
-            ax2.plot(wc_pred_speed[w_start:w_end], color='green', alpha=0.8)
+            ax2.plot(wc_pred_speed[w_start:w_end], color=color, alpha=0.8)
             ax2.set_xticklabels([])
             ax2.set_xticks([])
-            ax2.set_yticks([])
-            ax2.spines['top'].set_visible(False)
-            ax2.spines['right'].set_visible(False)
-            ax2.spines['bottom'].set_visible(False)
-            ax2.spines['left'].set_visible(False)
+            #ax2.set_yticks([])
+            #ax2.spines['top'].set_visible(False)
+            #ax2.spines['right'].set_visible(False)
+            #ax2.spines['bottom'].set_visible(False)
+            #ax2.spines['left'].set_visible(False)
             ax2.set_ylabel('Trained Same Context', color='black', fontsize=18, weight='bold')
 
-            ax3.plot(cc_pred_speed[w_start:w_end], color='green', alpha=0.8)
+            ax3.plot(cc_pred_speed[w_start:w_end], color=color, alpha=0.8)
             ax3.set_xticklabels([])
             ax3.set_xticks([])
-            ax3.set_yticks([])
-            ax3.spines['top'].set_visible(False)
-            ax3.spines['right'].set_visible(False)
-            ax3.spines['left'].set_visible(False)
+            #ax3.set_yticks([])
+            #ax3.spines['top'].set_visible(False)
+            #ax3.spines['right'].set_visible(False)
+            #ax3.spines['left'].set_visible(False)
             ax3.set_ylabel('Trained Different Context', color='black', fontsize=18, weight='bold')
 
             plt.tight_layout()
             plt.show()
+
+
 
             
 

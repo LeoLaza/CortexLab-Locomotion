@@ -24,18 +24,18 @@ def calculate_median_position(x,y):
 def calculate_oa_speed(x, y, bin_width):
     
     distances = np.sqrt(np.diff(x)**2 + np.diff(y)**2)
-    max_distance = np.percentile(distances, 99) # think about a more rigorpus approach to filtering what velocities would be unrealistic
-    distances[distances > max_distance] = np.nan
-    valid_indices = np.where(~np.isnan(distances))[0]
-    distances = np.interp(
-    np.arange(len(distances)),  
-    valid_indices,              
-    distances[valid_indices]    
-)
+    #max_distance = np.percentile(distances, 99) # think about a more rigorpus approach to filtering what velocities would be unrealistic
+    #distances[distances > max_distance] = np.nan
+    #valid_indices = np.where(~np.isnan(distances))[0]
+    #distances = np.interp(
+    #np.arange(len(distances)),  
+    #valid_indices,              
+    #distances[valid_indices]    
+
     oa_speed_pix = distances / bin_width
     conversion_factor = 0.07 
     oa_speed = oa_speed_pix * conversion_factor
-    oa_speed = gaussian_filter1d(oa_speed, 6)
+    oa_speed = gaussian_filter1d(oa_speed, 3)
     oa_speed = np.concatenate(([oa_speed[0] if len(oa_speed) > 0 else 0], oa_speed)) 
     return oa_speed
 
@@ -44,7 +44,7 @@ def calculate_wh_speed(rotary_position, bin_width, wh_diameter=15):
     wh_circumference = np.pi * wh_diameter
     linear_distance_cm = np.diff(rotary_position) * wh_circumference / 360 
     wh_speed = np.abs(linear_distance_cm / bin_width) 
-    wh_speed = gaussian_filter1d(wh_speed, 6)
+    wh_speed = gaussian_filter1d(wh_speed, 3)
     wh_speed = np.concatenate(([wh_speed[0] if len(wh_speed) > 0 else 0], wh_speed))
     return wh_speed
 
