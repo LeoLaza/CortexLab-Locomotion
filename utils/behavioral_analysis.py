@@ -116,11 +116,13 @@ def get_position_masks (x, y, center_x, center_y, radius, subject_id):
 
     if not subject_id == 'GB012':
         oa_pos = ~wh_pos & (~right_corner)
+        corner = right_corner
 
     else:
         oa_pos = ~wh_pos & (~left_corner)
+        corner = left_corner
 
-    return oa_pos, wh_pos
+    return oa_pos, wh_pos, corner
 
 
 def temporal_buffer(pos_mask, buffer_size=10):
@@ -136,13 +138,31 @@ def temporal_buffer(pos_mask, buffer_size=10):
 
 def calculate_roi_occupation(arena_mask, wheel_mask):
 
-    total_time = len(arena_mask)
-    arena_time = np.count_nonzero(arena_mask)
-    wheel_time = np.count_nonzero(wheel_mask)
-    arena_occupation = arena_time / total_time 
-    wheel_occupation= wheel_time / total_time 
+    total_frames = len(arena_mask) 
+    arena_frames = np.count_nonzero(arena_mask)
+    wheel_frames = np.count_nonzero(wheel_mask)
+    percentage_arena = arena_frames / total_frames 
+    percentage_wheel= wheel_frames / total_frames 
 
-    return arena_occupation, wheel_occupation
+    return percentage_arena, percentage_wheel
+
+def calculate_roi_time(arena_mask, wheel_mask, bin_width):
+
+    arena_frames = np.count_nonzero(arena_mask)
+    wheel_frames = np.count_nonzero(wheel_mask)
+    time_arena = arena_frames / bin_width / 60
+    time_wheel= wheel_frames / bin_width / 60
+
+    return time_arena, time_wheel
+
+def calculate_roi_mean_spks(arena_mask, wheel_mask, spike_counts):
+
+    mean_spks_arena = np.mean(spike_counts[:, arena_mask])
+    mean_spks_wheel= np.mean(spike_counts[:, arena_mask])
+    return mean_spks_arena, mean_spks_wheel
+
+
+
 
 
 

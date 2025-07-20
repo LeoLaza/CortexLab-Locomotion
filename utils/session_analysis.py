@@ -44,7 +44,7 @@ def load_session_data(subject_id, date, target_freq=10):
 
     # define context
     _, roi_x, roi_y, radius = get_ROI(subject_id, date)
-    oa_pos, wh_pos = get_position_masks(x, y, roi_x, roi_y, radius, subject_id)
+    oa_pos, wh_pos, corner = get_position_masks(x, y, roi_x, roi_y, radius, subject_id)
     
     # compute speed in either context 
     oa_speed = calculate_oa_speed(x, y, bin_width)
@@ -89,18 +89,39 @@ def load_session_data(subject_id, date, target_freq=10):
         subject_id=subject_id,
         date=date,
         bin_width = bin_width,
+        roi_x=roi_x,
+        roi_y= roi_y,
+        radius=radius
     )
 
     behavior = Bunch(
+        bodypart_x= bodypart_x,
+        bodypart_y= bodypart_y,
+        x= x,
+        y=y,
+        rotary_position = rotary_position,
         speed_arena=oa_speed,
         speed_wheel =wh_speed,
         mask_arena=oa_pos,
         mask_wheel=wh_pos,
+        corner=corner
     )
 
     
     
     return metadata, behavior, spike_counts
+
+def perform_behavioral_analysis(metadata, behavior):
+
+    speed_arena= behavior.speed_arena
+    speed_wheel= behavior.speed_wheel
+    mask_arena= behavior.mask_arena 
+    mask_wheel= behavior.mask_wheel
+    bin_width= metadata.bin_width
+
+    calculate_roi_occupation()
+
+
     
 
 def perform_correlation_analyses(behavior, spike_counts):

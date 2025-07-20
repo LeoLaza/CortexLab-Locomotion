@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from utils.data_loading_and_preprocessing import preprocess_dlc_data
 import cv2
+import math
 
 
 
@@ -180,8 +181,8 @@ def plot_correlation_histogram(correlations, color='blue', p_vals=None):
 def plot_raster_pos_neg(spike_counts, speed, mask, correlations, color='blue', n_neurons=100, w_start=0, w_end=1200):
     
     fig, axes = plt.subplots(3, 1, figsize=(8, 6), 
-                                       gridspec_kw={'height_ratios': [1, 1, 1]},
-                                       sharex=True)
+                                       gridspec_kw={'height_ratios': [0.5, 1, 1]},
+                                       sharex=True, dpi=300)
 
     # Mask velocities
     speed[~mask] = 0
@@ -206,9 +207,9 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, color='blue', n
     vmax = np.percentile(np.concatenate([s.flatten() for s in spike_sets]), 75)
         
    
-    axes[0].plot(speed, color=color, linewidth=1.5)
+    axes[0].plot(speed[w_start:w_end], color=color, linewidth=1.5)
     axes[0].set_ylabel('Arena\n(cm/s)', fontsize=10)
-    axes[0].set_ylim(0, max(speed) * 1.1)
+    axes[0].set_ylim(0, math.ceil(int(max(speed[w_start:w_end])) // 5 + 1)*5)
         
         
     # Clean velocity axes
