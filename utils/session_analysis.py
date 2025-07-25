@@ -32,22 +32,22 @@ def load_session_data(subject_id, date, target_freq=10):
     exp_path, exp_idx = get_experiment_identifiers(ONE, dlc_frame_count= len(dlc_df), cam_fps=60)
     exp_onset, cam_timestamps = get_cam_timestamps(exp_kwargs, None, exp_idx)
     bodypart_x, bodypart_y = preprocess_dlc_data(dlc_df)
-    x, y = calculate_median_position(bodypart_x, bodypart_y)
+    mouse_x, mouse_y = calculate_median_position(bodypart_x, bodypart_y)
     rotary_timestamps, rotary_position = get_rotary_position(None, exp_path)
     
     # temporally align variables
     bin_edges, bin_centers, bin_width = create_time_bins(cam_timestamps, exp_onset, rotary_timestamps, target_freq=target_freq)
     rotary_position = temporally_align_variable(rotary_position, bin_centers, rotary_timestamps)
-    x = temporally_align_variable(x, bin_centers, cam_timestamps)
-    y = temporally_align_variable(y, bin_centers, cam_timestamps)
+    mouse_x = temporally_align_variable(mouse_x, bin_centers, cam_timestamps)
+    mouse_y = temporally_align_variable(mouse_y, bin_centers, cam_timestamps)
 
 
     # define context
-    _, roi_x, roi_y, radius = get_ROI(subject_id, date)
-    oa_pos, wh_pos, corner = get_position_masks(x, y, roi_x, roi_y, radius, subject_id)
+    _, roi_x, roi_y, roi_radius = get_ROI(subject_id, date)
+    oa_pos, wh_pos, corner = get_position_masks(mouse_x, mouse_y, roi_x, roi_y, roi_radius, subject_id)
     
     # compute speed in either context 
-    oa_speed = calculate_oa_speed(x, y, bin_width)
+    oa_speed = calculate_oa_speed(mouse_x, mouse_y, bin_width)
     wh_speed = calculate_wh_speed(rotary_position, bin_width)
     
 
@@ -89,16 +89,17 @@ def load_session_data(subject_id, date, target_freq=10):
         subject_id=subject_id,
         date=date,
         bin_width = bin_width,
+        exp_onset=exp_onset,
         roi_x=roi_x,
         roi_y= roi_y,
-        radius=radius
+        roi_radius=roi_radius
     )
 
     behavior = Bunch(
         bodypart_x= bodypart_x,
         bodypart_y= bodypart_y,
-        x= x,
-        y=y,
+        mouse_x= mouse_x,
+        mouse_y= mouse_y,
         rotary_position = rotary_position,
         speed_arena=oa_speed,
         speed_wheel =wh_speed,
@@ -111,18 +112,40 @@ def load_session_data(subject_id, date, target_freq=10):
     
     return metadata, behavior, spike_counts
 
-def perform_behavioral_analysis(metadata, behavior):
 
-    speed_arena= behavior.speed_arena
-    speed_wheel= behavior.speed_wheel
-    mask_arena= behavior.mask_arena 
-    mask_wheel= behavior.mask_wheel
-    bin_width= metadata.bin_width
-
-    calculate_roi_occupation()
-
-
+def compute_behavioral_summary(behavior, metadata):
     
+    # Extract existing data
+    speed_arena = behavior.speed_arena
+    speed_wheel = behavior.speed_wheel
+    mask_arena = behavior.mask_arena
+    mask_wheel = behavior.mask_wheel
+    bin_width = metadata.bin_width
+    
+    # Time analysis
+    time_arena = np.sum(mask_arena) * bin_width / 60  # minutes
+    time_wheel = np.sum(mask_wheel) * bin_width / 60  # minutes
+    total_time = (len(mask_arena) * bin_width) / 60
+    
+    occupancy_arena = (time_arena / total_time) * 100
+    occupancy_wheel = (time_wheel / total_time) * 100
+    
+    # Speed analysis - only during locomotion periods
+    mean_speed_arena = np.mean(speed_arena[mask_arena]) if np.any(mask_arena) else 0
+    mean_speed_wheel = np.mean(speed_wheel[mask_wheel]) if np.any(mask_wheel) else 0
+    
+    accuracy = get_classification_accuracy(mask_wheel, behavior.rotary_position, bin_width)
+    
+    # Add to behavior bunch
+    behavior.summary = Bunch(
+        time_spent=Bunch(arena=time_arena, wheel=time_wheel, total=total_time),
+        occupancy=Bunch(arena=occupancy_arena, wheel=occupancy_wheel),
+        mean_speed=Bunch(arena=mean_speed_arena, wheel=mean_speed_wheel),
+        accuracy=accuracy
+    )
+    
+    return behavior
+
 
 def perform_correlation_analyses(behavior, spike_counts):
 
@@ -325,8 +348,12 @@ def analyze_single_session(subject_id, date, correlation=True, decoding=True, le
     
     metadata, behavior, spike_counts = load_session_data(subject_id, date)
 
+    behavior = compute_behavioral_summary(behavior, metadata)
+
     correlation_results = None
     decoding_results = None
+
+
     
     # Run analyses
     if correlation:

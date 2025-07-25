@@ -20,7 +20,7 @@ def split_for_decoding(spike_counts, speed_arena, speed_wheel, mask_arena, mask_
     speed_arena_half1 = speed_arena[:halfpoint][mask_arena_half1]
     speed_wheel_half1 = speed_wheel[:halfpoint][mask_wheel_half1]
 
-    # Calculate GLOBAL normalization parameters from training data only
+    # Calculate normalization parameters from training data only
     all_half1_speeds = np.concatenate([speed_arena_half1, speed_wheel_half1])
     half1_speed_mean = np.mean(all_half1_speeds)
     half1_speed_std = np.std(all_half1_speeds)

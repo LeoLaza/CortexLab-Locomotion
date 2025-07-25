@@ -53,7 +53,7 @@ def get_ROI(subject_id, date):
     frame_idx = 0
 
     cap = cv2.VideoCapture(fr'\\znas\Lab\Share\Maja\labelled_DLC_videos\{subject_id}_{date}.mp4')
-    while frame_idx < 10: 
+    while frame_idx < 1000: 
 
         ret, frame = cap.read()
         if not ret:
@@ -135,31 +135,25 @@ def temporal_buffer(pos_mask, buffer_size=10):
     
     return pos_mask
 
+def get_classification_accuracy(mask_wheel, rotary_position, bin_width, movement_threshold=0):
+    
+    # Calculate wheel speed
+    speed_wheel = calculate_wh_speed(rotary_position, bin_width)
+    wheel_moving = speed_wheel > movement_threshold
+    
+    # Get indices where wheel is moving
+    wheel_moving_indices = np.where(wheel_moving)[0]
+    
+    if len(wheel_moving_indices) == 0:
+        return np.nan
+    
+    # Calculate accuracy: when wheel moves, how often is classification correct?
+    accuracy = np.mean(mask_wheel[wheel_moving_indices])
+    
+    return accuracy
 
-def calculate_roi_occupation(arena_mask, wheel_mask):
 
-    total_frames = len(arena_mask) 
-    arena_frames = np.count_nonzero(arena_mask)
-    wheel_frames = np.count_nonzero(wheel_mask)
-    percentage_arena = arena_frames / total_frames 
-    percentage_wheel= wheel_frames / total_frames 
 
-    return percentage_arena, percentage_wheel
-
-def calculate_roi_time(arena_mask, wheel_mask, bin_width):
-
-    arena_frames = np.count_nonzero(arena_mask)
-    wheel_frames = np.count_nonzero(wheel_mask)
-    time_arena = arena_frames / bin_width / 60
-    time_wheel= wheel_frames / bin_width / 60
-
-    return time_arena, time_wheel
-
-def calculate_roi_mean_spks(arena_mask, wheel_mask, spike_counts):
-
-    mean_spks_arena = np.mean(spike_counts[:, arena_mask])
-    mean_spks_wheel= np.mean(spike_counts[:, arena_mask])
-    return mean_spks_arena, mean_spks_wheel
 
 
 

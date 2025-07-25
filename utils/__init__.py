@@ -13,7 +13,8 @@ from .behavioral_analysis import (
     get_position_masks,
     temporal_buffer,
     get_ROI,
-    preprocess_frame, 
+    preprocess_frame,
+    get_classification_accuracy,
 )
 
 from .correlation_analysis import (
@@ -54,7 +55,11 @@ from .visualization import (
     plot_cross_context_correlation,
     plot_raster_pos_neg,
     plot_reliability,
-    plot_masked_positions,
+    plot_context_preference,
+    plot_mean_speed_comparison,
+    plot_roi, 
+    visualize_annotated_frame
+    
 )
 
 
