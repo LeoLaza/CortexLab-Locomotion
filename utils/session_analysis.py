@@ -44,11 +44,14 @@ def load_session_data(subject_id, date, target_freq=10):
 
     # define context
     _, roi_x, roi_y, roi_radius = get_ROI(subject_id, date)
-    oa_pos, wh_pos, corner = get_position_masks(mouse_x, mouse_y, roi_x, roi_y, roi_radius, subject_id)
+    pos_arena, pos_wheel, corner = get_position_masks(mouse_x, mouse_y, roi_x, roi_y, roi_radius, subject_id)
     
     # compute speed in either context 
-    oa_speed = calculate_oa_speed(mouse_x, mouse_y, bin_width)
-    wh_speed = calculate_wh_speed(rotary_position, bin_width)
+    speed_arena = calculate_oa_speed(mouse_x, mouse_y, bin_width)
+    speed_wheel = calculate_wh_speed(rotary_position, bin_width)
+
+    running_arena, bout_info_arena= get_locomotion_bouts(speed_arena, pos_arena)
+    running_wheel, bout_info_wheel= get_locomotion_bouts(speed_wheel, pos_wheel)
     
 
     # generate spike histogram 
@@ -75,7 +78,7 @@ def load_session_data(subject_id, date, target_freq=10):
 
         # Create histogram as usual
         spike_counts = get_spike_hist(spikes, clusters, bin_edges)
-        spike_counts = filter_spike_counts(spike_counts,oa_pos, wh_pos)
+        spike_counts = filter_spike_counts(spike_counts, pos_arena, pos_wheel)
 
     
     except Exception as e:
@@ -101,12 +104,12 @@ def load_session_data(subject_id, date, target_freq=10):
         mouse_x= mouse_x,
         mouse_y= mouse_y,
         rotary_position = rotary_position,
-        speed_arena=oa_speed,
-        speed_wheel =wh_speed,
-        mask_arena=oa_pos,
-        mask_wheel=wh_pos,
-        corner=corner
-    )
+        speed_arena=speed_arena,
+        speed_wheel =speed_wheel,
+        mask_arena=running_arena,
+        mask_wheel=running_wheel,
+        corner=corner,  
+        )
 
     
     
@@ -250,48 +253,13 @@ def perform_decoding_analyses(behavior, spike_counts, leaveout=None, alpha=None)
     weights_wheel = wheel_model.coef_
     cosine_similarity_weights = np.dot(weights_arena, weights_wheel) / (np.linalg.norm(weights_arena) * np.linalg.norm(weights_wheel))
  
-    # test model performance within context
-    pred_arena = arena_model.predict(test_data.spike_counts_arena)
-    r2_arena = arena_model.score(test_data.spike_counts_arena, test_data.speed_arena)
-
-    pred_wheel = wheel_model.predict(test_data.spike_counts_wheel)
-    r2_wheel = wheel_model.score(test_data.spike_counts_wheel, test_data.speed_wheel)
-
-    # compute cross-correlation
-    cross_corr_arena = np.correlate(test_data.speed_arena, pred_arena)
-    cross_corr_wheel = np.correlate(test_data.speed_wheel, pred_wheel)
-
-    # test model performance cross-context  
+    # speed trace predictions 
+    pred_arena_to_arena = arena_model.predict(test_data.spike_counts_arena)
+    pred_wheel_to_wheel = wheel_model.predict(test_data.spike_counts_wheel)
     pred_arena_to_wheel = arena_model.predict(test_data.spike_counts_wheel)
-    r2_arena_to_wheel = arena_model.score(test_data.spike_counts_wheel, test_data.speed_wheel)
-    
     pred_wheel_to_arena = wheel_model.predict(test_data.spike_counts_arena)
-    r2_wheel_to_arena = wheel_model.score(test_data.spike_counts_arena, test_data.speed_arena)
 
-    cross_corr_arena = correlate(test_data.speed_arena, pred_arena, mode='full')
-    lags_arena = correlation_lags(len(test_data.speed_arena), len(pred_arena), mode='full')
-    
-    cross_corr_wheel = correlate(test_data.speed_wheel, pred_wheel, mode='full')
-    lags_wheel = correlation_lags(len(test_data.speed_wheel), len(pred_wheel), mode='full')
-    
-    # Cross-context
-    cross_corr_arena_to_wheel = correlate(test_data.speed_wheel, pred_arena_to_wheel, mode='full')
-    lags_arena_to_wheel = correlation_lags(len(test_data.speed_wheel), len(pred_arena_to_wheel), mode='full')
-    
-    cross_corr_wheel_to_arena = correlate(test_data.speed_arena, pred_wheel_to_arena, mode='full')
-    lags_wheel_to_arena = correlation_lags(len(test_data.speed_arena), len(pred_wheel_to_arena), mode='full')
 
-    norm_arena = np.sqrt(np.sum(test_data.speed_arena**2) * np.sum(pred_arena**2))
-    cross_corr_arena = cross_corr_arena / norm_arena
-    
-    norm_wheel = np.sqrt(np.sum(test_data.speed_wheel**2) * np.sum(pred_wheel**2))
-    cross_corr_wheel = cross_corr_wheel / norm_wheel
-    
-    norm_arena_to_wheel = np.sqrt(np.sum(test_data.speed_wheel**2) * np.sum(pred_arena_to_wheel**2))
-    cross_corr_arena_to_wheel = cross_corr_arena_to_wheel / norm_arena_to_wheel
-    
-    norm_wheel_to_arena = np.sqrt(np.sum(test_data.speed_arena**2) * np.sum(pred_wheel_to_arena**2))
-    cross_corr_wheel_to_arena = cross_corr_wheel_to_arena / norm_wheel_to_arena
 
     leaveout_results = None
 
@@ -303,36 +271,28 @@ def perform_decoding_analyses(behavior, spike_counts, leaveout=None, alpha=None)
         arena=arena_model,
         wheel=wheel_model
     ),
-    performance=Bunch(
-        within_context=Bunch(arena=r2_arena, wheel=r2_wheel),
-        cross_context=Bunch(arena_to_wheel=r2_arena_to_wheel, 
-                           wheel_to_arena=r2_wheel_to_arena)
-    ),
 
-    lag_metrics = Bunch(
-        within_context=Bunch(
-            arena=get_lag_metrics(cross_corr_arena, lags_arena),
-            wheel=get_lag_metrics(cross_corr_wheel, lags_wheel)
-        ),
-        cross_context=Bunch(
-            arena_to_wheel=get_lag_metrics(cross_corr_arena_to_wheel, lags_arena_to_wheel),
-            wheel_to_arena=get_lag_metrics(cross_corr_wheel_to_arena, lags_wheel_to_arena)
-        )
-    ),
-    prediction=Bunch(
-        within_context=Bunch(arena=pred_arena, wheel=pred_wheel),
-        cross_context=Bunch(arena_to_wheel=pred_arena_to_wheel, 
-                           wheel_to_arena=pred_wheel_to_arena)
-    ),
-
-   
-    weights=Bunch(
+        weights=Bunch(
         arena= weights_arena,
         wheel= weights_wheel,
         cosine_similarity=cosine_similarity_weights
     ),
-    leaveout=leaveout_results,
 
+        prediction=Bunch(
+        arena_to_arena=pred_arena_to_arena, 
+        wheel_to_wheel=pred_wheel_to_wheel,
+        arena_to_wheel=pred_arena_to_wheel, 
+        wheel_to_arena=pred_wheel_to_arena
+    ),
+
+    performance=Bunch(
+        arena_to_arena=np.corrcoef(test_data.speed_arena, pred_arena_to_arena)[0,1],
+        wheel_to_wheel=np.corrcoef(test_data.speed_wheel, pred_wheel_to_wheel)[0,1],
+        arena_to_wheel=np.corrcoef(test_data.speed_wheel, pred_arena_to_wheel)[0,1],
+        wheel_to_arena=np.corrcoef(test_data.speed_arena, pred_wheel_to_arena)[0,1],
+    ),
+
+    leaveout=leaveout_results,
     test_data = test_data
     )
 
@@ -340,19 +300,16 @@ def perform_decoding_analyses(behavior, spike_counts, leaveout=None, alpha=None)
     return decoding_results
 
 
-def analyze_single_session(subject_id, date, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
+def analyze_single_session(subject_id, date, target_freq, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
     # Load data
 
-    print(subject_id)
-    print(date)
     
-    metadata, behavior, spike_counts = load_session_data(subject_id, date)
+    metadata, behavior, spike_counts = load_session_data(subject_id, date, target_freq=target_freq)
 
     behavior = compute_behavioral_summary(behavior, metadata)
 
     correlation_results = None
     decoding_results = None
-
 
     
     # Run analyses
@@ -372,7 +329,7 @@ def analyze_single_session(subject_id, date, correlation=True, decoding=True, le
         decoding=decoding_results,
     )
 
-def analyze_all_sessions(session_list, correlation=True, decoding=True, leaveout= True, alpha=[0.1, 1, 10, 100, 500, 1000]):
+def analyze_all_sessions(session_list, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
     return [analyze_single_session(subject_id, date, correlation=correlation, decoding=decoding, leaveout=leaveout, alpha=alpha) for subject_id, date in session_list]
 
 

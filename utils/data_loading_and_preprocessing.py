@@ -16,19 +16,10 @@ from scipy.io import loadmat
 from pinkrigs_tools.dataset.query import load_data
 from scipy.ndimage import gaussian_filter1d
 
-def load_ONE(exp_kwargs):
-    """
-    Load the ONE folder of a specified session.
 
-    Parameters:
-    -----------
-    exp_kwargs : dict
-        Experiment parameters (subject, expDate)
-        
-    Returns:
-    --------
-    ONE : DataFrame containing ONE folder items
-    """
+##parameters###
+
+def load_ONE(exp_kwargs):
 
     ONE = load_data(
     data_name_dict= 'all-default',
@@ -39,9 +30,6 @@ def load_ONE(exp_kwargs):
 
 
 def get_experiment_identifiers(ONE=None, exp_kwargs=None, dlc_frame_count=None, cam_fps=60):
-    """
-    Extract experiment path from ONE data.
-    """
 
     if ONE is None:
         if exp_kwargs is None:

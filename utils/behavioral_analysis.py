@@ -24,7 +24,7 @@ def calculate_median_position(x,y):
 def calculate_oa_speed(x, y, bin_width):
     
     distances = np.sqrt(np.diff(x)**2 + np.diff(y)**2)
-    #max_distance = np.percentile(distances, 99) # think about a more rigorpus approach to filtering what velocities would be unrealistic
+    #max_distance = np.percentile(distances, 99) 
     #distances[distances > max_distance] = np.nan
     #valid_indices = np.where(~np.isnan(distances))[0]
     #distances = np.interp(
@@ -151,6 +151,74 @@ def get_classification_accuracy(mask_wheel, rotary_position, bin_width, movement
     accuracy = np.mean(mask_wheel[wheel_moving_indices])
     
     return accuracy
+
+def get_locomotion_bouts(speed, context_mask, onset_threshold=2, offset_threshold=2, 
+                             min_bout_duration=20, min_stable_offset=10):
+   
+    # Initialize output mask
+    bout_mask = np.zeros_like(speed, dtype=bool)
+    
+    # Get indices where animal is in this context
+    context_indices = np.where(context_mask)[0]
+    
+    if len(context_indices) == 0:
+        return bout_mask, {'onsets': [], 'offsets': [], 'durations': []}
+    
+    # Only analyze speed values when in context
+    # This is more explicit than masking
+    onsets = []
+    offsets = []
+    
+    # Work with continuous segments of context
+    # Find where context starts and stops
+    context_diff = np.diff(np.concatenate([[0], context_mask.astype(int), [0]]))
+    segment_starts = np.where(context_diff == 1)[0]
+    segment_ends = np.where(context_diff == -1)[0] - 1
+    
+    for start, end in zip(segment_starts, segment_ends):
+        # Analyze this continuous segment
+        segment_speed = speed[start:end+1]
+        
+        # Detect bouts within this segment
+        running = False
+        onset_idx = None
+        
+        for i in range(len(segment_speed)):
+            if not running:
+                if i + min_stable_offset <= len(segment_speed):
+                    if np.all(segment_speed[i:i+min_stable_offset] >= onset_threshold):
+                        running = True
+                        onset_idx = i
+            else:
+                if i + min_stable_offset <= len(segment_speed) and np.all(segment_speed[i:i+min_stable_offset] < offset_threshold):
+                    if np.all(segment_speed[i:i+min_stable_offset] < offset_threshold):
+                        if i - onset_idx >= min_bout_duration:
+                            # Convert to global indices
+                            global_onset = start + onset_idx
+                            global_offset = start + i
+                            onsets.append(global_onset)
+                            offsets.append(global_offset)
+                            # Mark the bout
+                            bout_mask[global_onset:global_offset+1] = True
+                        running = False
+                        onset_idx = None
+                if i == len(segment_speed) - 1:
+                    if running and i - onset_idx >= min_bout_duration:
+                        global_onset = start + onset_idx
+                        global_offset = start + i
+                        onsets.append(global_onset)
+                        offsets.append(global_offset)
+                        bout_mask[global_onset:global_offset+1] = True
+    
+    durations = [off - on + 1 for on, off in zip(onsets, offsets)]
+    
+    bout_info = {
+        'onsets': np.array(onsets),
+        'offsets': np.array(offsets),
+        'durations': np.array(durations)
+    }
+    
+    return bout_mask, bout_info
 
 
 

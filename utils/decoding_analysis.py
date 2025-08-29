@@ -8,28 +8,28 @@ import numpy as np
 def split_for_decoding(spike_counts, speed_arena, speed_wheel, mask_arena, mask_wheel):
     
     epsilon = 1e-8 
-    # Calculate the half point of the spike counts
+    # calculate the half point of the spike counts
     halfpoint = len(spike_counts[1]) // 2
 
-    # Create masks for training and testing sets
+    # create masks for training and testing sets
     mask_arena_half1 = mask_arena[:halfpoint]
     mask_wheel_half1 = mask_wheel[:halfpoint]
     
 
-    # Get training speed data
+    # get training speed data
     speed_arena_half1 = speed_arena[:halfpoint][mask_arena_half1]
     speed_wheel_half1 = speed_wheel[:halfpoint][mask_wheel_half1]
 
-    # Calculate normalization parameters from training data only
+    # calculate normalization parameters from training data only
     all_half1_speeds = np.concatenate([speed_arena_half1, speed_wheel_half1])
     half1_speed_mean = np.mean(all_half1_speeds)
     half1_speed_std = np.std(all_half1_speeds)
     
-    # Normalize training speeds with global parameters
+    # normalize training speeds with global parameters
     speed_arena_half1 = (speed_arena_half1 - half1_speed_mean) / half1_speed_std
     speed_wheel_half1 = (speed_wheel_half1 - half1_speed_mean) / half1_speed_std
 
-    # Get training spike counts
+    # get training spike counts
     spike_counts_arena_half1 = spike_counts[:, :halfpoint][:, mask_arena_half1]
     spike_counts_wheel_half1 = spike_counts[:, :halfpoint][:, mask_wheel_half1]
 
@@ -40,19 +40,19 @@ def split_for_decoding(spike_counts, speed_arena, speed_wheel, mask_arena, mask_
     spike_counts_arena_half1 = (spike_counts_arena_half1 - half1_spike_mean) / (half1_spike_std + epsilon)
     spike_counts_wheel_half1 = (spike_counts_wheel_half1 - half1_spike_mean) / (half1_spike_std + epsilon)
 
-    # Create masks for testing sets
+    # create masks for testing sets
     mask_arena_half2 = mask_arena[halfpoint:]
     mask_wheel_half2 = mask_wheel[halfpoint:]
 
 
-    # Get testing speed data
+    # get testing speed data
     speed_arena_half2 = speed_arena[halfpoint:][mask_arena_half2]
     speed_wheel_half2 = speed_wheel[halfpoint:][mask_wheel_half2]
 
     speed_arena_half2 = (speed_arena_half2 - half1_speed_mean) / half1_speed_std 
     speed_wheel_half2 = (speed_wheel_half2 - half1_speed_mean) / half1_speed_std 
     
-    # Get testing spike counts
+    # get testing spike counts
     spike_counts_arena_half2 = spike_counts[:, halfpoint:][:, mask_arena_half2]
     spike_counts_wheel_half2 = spike_counts[:, halfpoint:][:, mask_wheel_half2]
 
@@ -105,42 +105,42 @@ def compute_leaveout_analysis(train_data, test_data, weights_arena, weights_whee
         'random': control_weights
     }
     
-    r2_curves = {}
+    r_curves = {}
     cosine_similarities = {}
     
-    # Compute all R² curves and save weights for cosine similarity
     for sort_by in sort_indices.keys():
         sort_idx = sort_indices[sort_by]
         
-        # Temporary storage for weights
+        # temporary storage for weights
         arena_weights = []
         wheel_weights = []
         
         for train_on in contexts:
-            # Setup data
+            # setup data
             train_spikes = getattr(train_data, f'spike_counts_{train_on}')[:, sort_idx]
             test_spikes = getattr(test_data, f'spike_counts_{train_on}')[:, sort_idx]
             train_speed = getattr(train_data, f'speed_{train_on}')
             test_speed = getattr(test_data, f'speed_{train_on}')
             
-            # Compute R² curve
+            
             scores = np.zeros(n_iterations)
             ridge = Ridge(alpha=alpha)
             
             for i in range(n_iterations):
                 ridge.fit(train_spikes[:, i:], train_speed)
-                scores[i] = ridge.score(test_spikes[:, i:], test_speed)
+                prediction= ridge.predict(test_spikes[:, i:])
+                scores[i] = scores[i] = np.corrcoef(test_speed, prediction)
                 
-                # Save weights for cosine similarity
+                # save weights for cosine similarity
                 if train_on == 'arena':
                     arena_weights.append(ridge.coef_)
                 else:
                     wheel_weights.append(ridge.coef_)
             
-            # Store R² curve with simple key
-            r2_curves[f'{train_on}_{sort_by}'] = scores
+            # store R² curve with simple key
+            r_curves[f'{train_on}_{sort_by}'] = scores
         
-        # Compute cosine similarity for this sorting
+        # compute cosine similarity for this sorting
         cosine_sim = np.zeros(n_iterations)
         for i in range(n_iterations):
             cosine_sim[i] = np.dot(arena_weights[i], wheel_weights[i]) / (
@@ -149,7 +149,7 @@ def compute_leaveout_analysis(train_data, test_data, weights_arena, weights_whee
         cosine_similarities[sort_by] = cosine_sim
     
     return Bunch(
-        r2_curves=r2_curves, 
+        r_curves=r_curves, 
         cosine_similarities=cosine_similarities,  
     )
             

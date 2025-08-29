@@ -1,0 +1,273 @@
+from matplotlib import pyplot as plt
+import numpy as np
+from matplotlib.lines import Line2D
+
+
+def plot_weight_correlation(weights_arena, weights_wheel):
+
+    # plot correlation of weights 
+    fig, ax = plt.subplots(figsize=(6, 6),dpi=300)
+    ax.scatter(weights_arena, weights_wheel, alpha=0.7, color="#141414", zorder=2, s=80)
+
+    # axis formatting 
+    ax.set_xlabel('weights arena', fontsize=20, color="#195A2C")
+    ax.set_ylabel('weights wheel', fontsize=20, color="#7D0C81")
+    ax.axhline(0, color='k', linewidth=1, alpha=0.5, zorder=1, ls='--')
+    ax.axvline(0, color='k', linewidth=1, alpha=0.5, zorder=1, ls='--')
+    ax.set_xlim(-0.15, 0.15)
+    ax.set_ylim(-0.15, 0.15)
+    ax.set_xticks(np.arange(-0.15, 0.151, 0.15))  
+    ax.set_yticks(np.arange(-0.15, 0.151, 0.15))
+    ax.tick_params(axis='x', pad=10) 
+    ax.tick_params(axis='y', pad=10)
+    ax.tick_params(axis='both', labelsize=20)
+
+    # remove top and right spines
+    ax.spines[['right', 'top']].set_visible(False)
+
+    plt.tight_layout()
+
+
+def plot_decoding_predictions(measured_speed, within_context_prediction, cross_context_prediction, w_start, w_end, color="#141414"):
+    
+    """
+    Plot observed and predicted speed (within- and cross-context) for a selected time window.
+
+    Parameters:
+    measured_speed : numpy array
+        observed speed on test set
+    within_context_prediction : numpy array
+        predicted speed from within-context model
+    cross_context_prediction : numpy array
+        predicted speed from cross-context model
+    w_start : int
+        start index for window to plot
+    w_end : int    
+        end index for window to plot
+    color : str
+        color for speed traces (for arena: "#195A2C", for wheel: "#7D0C81")
+    
+    """
+                
+    # create figure
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 3), 
+                                        gridspec_kw={'height_ratios': [1, 1, 1]},
+                                        sharex=True)
+        
+    # plot velocities
+    ax1.plot(measured_speed[w_start:w_end], color=color, alpha=0.8)
+    ax1.set_xticklabels([])
+    ax1.set_xticks([])
+    ax1.set_yticks([])
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    ax1.spines['bottom'].set_visible(False)
+    ax1.text(0, 0.5, 'observed\nwheel', transform=ax1.transAxes, fontsize=12, color='#7D0C81', horizontalalignment='right', verticalalignment='center')
+    
+
+    ax2.plot(within_context_prediction[w_start:w_end], color=color, alpha=0.8)
+    ax2.set_xticklabels([])
+    ax2.set_xticks([])
+    ax2.set_yticks([])
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    ax2.spines['bottom'].set_visible(False)
+    ax2.text(0, 0.5, 'wheel\nmodel', transform=ax2.transAxes, fontsize=12, color='#7D0C81', horizontalalignment='right', verticalalignment='center')  # Signature green
+
+    ax3.plot(cross_context_prediction[w_start:w_end], color=color, alpha=0.8)
+    ax3.set_xticklabels([])
+    ax3.set_xticks([])
+    ax3.set_yticks([])
+    ax3.spines['top'].set_visible(False)
+    ax3.spines['right'].set_visible(False)
+    ax3.text(0, 0.5, 'arena\nmodel', transform=ax3.transAxes, fontsize=12, color="#195A2C", horizontalalignment='right', verticalalignment='center')  # Signature purple
+    
+    plt.rcParams['font.sans-serif'] = ['Arial']
+    plt.tight_layout()
+   
+
+    
+def plot_decoding_performance_comparison(all_session_results):
+    """
+    Plot comparison of decoding performance within and across contexts
+    for all sessions for both arena and wheel.
+
+    Parameters:
+    results : list
+        comprises results objects for each session containing decoding performance data
+
+    """
+
+    # define colors for different brain regions and subjects
+    colors = {
+        'hippocampus': "#A5CB5D",  
+        'striatum': "#E37A2A",
+        'MOs(1)': "#660D0D",  
+        'MOs(2)': "#9F3A3A",  
+        'MOs(3)': "#D26E6E"  
+    }
+
+    # mapping of subject IDs in secondary motor cortex to mouse labels
+    mos_mapping = {
+        'AV043': 'MOs(1)',
+        'GB011': 'MOs(2)', 
+        'GB012': 'MOs(3)'
+    }
+
+
+    # create side by side figure with two subplots (left: arena, right: wheel)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5), dpi=300)
+
+    # gather arena decoding performance for each session distinguished by brain region
+    corr_arena_list = []
+    corr_wheel_to_arena_list = []
+    brain_regions_arena = []
+    subject_ids_arena = [] 
+
+    for session in all_session_results:
+        if session.decoding is None:
+            continue
+        
+        test_data = session.decoding.test_data
+        predictions = session.decoding.prediction
+        
+        corr_arena = np.corrcoef(test_data.speed_arena, predictions.arena_to_arena)[0, 1]
+        corr_wheel_to_arena = np.corrcoef(test_data.speed_arena, predictions.wheel_to_arena)[0, 1]
+        
+        corr_arena_list.append(corr_arena)
+        corr_wheel_to_arena_list.append(corr_wheel_to_arena)
+        subject_ids_arena.append(session.metadata.subject_id) 
+        
+        # assign brain region based on subject ID
+        if session.metadata.subject_id == 'EB036':
+            brain_regions_arena.append('hippocampus')
+        elif session.metadata.subject_id == 'EB037':
+            brain_regions_arena.append('striatum')
+        else:
+            brain_regions_arena.append('secondary motor cortex')
+
+    # convert correlation lists to numpy arrays
+    corr_arena = np.array(corr_arena_list)
+    corr_wheel_to_arena = np.array(corr_wheel_to_arena_list)
+
+    # plot individual sessions
+    for i in range(len(corr_arena)):
+        region = brain_regions_arena[i]
+        subject = subject_ids_arena[i]
+        
+        if region == 'hippocampus':
+            color = colors['hippocampus']
+        elif region == 'striatum':
+            color = colors['striatum']
+        else: 
+            mos_label = mos_mapping.get(subject, 'MOs(1)') 
+            color = colors[mos_label]
+
+        jitter = np.random.uniform(-0.05, 0.05, 2)
+        
+        ax1.plot([0 + jitter[0], 1 + jitter[1]], [corr_arena[i], corr_wheel_to_arena[i]], 
+                '--', color=color, alpha=0.3, linewidth=1) 
+        
+        ax1.scatter([0 + jitter[0], 1 + jitter[1]], [corr_arena[i], corr_wheel_to_arena[i]], 
+                color=color, alpha=0.7, s=70, zorder=3, edgecolors='none', linewidth=0.5) 
+
+    # calculate and plot means
+    mean_arena = np.mean(corr_arena)
+    mean_wheel_to_arena = np.mean(corr_wheel_to_arena)
+    ax1.plot([-0.2, 0.2], [mean_arena, mean_arena], color='#195A2C', linewidth=3, zorder=5, ls='dotted')
+    ax1.plot([0.8, 1.2], [mean_wheel_to_arena, mean_wheel_to_arena], color='#7D0C81', linewidth=3, zorder=5, ls='dotted')
+
+    # formatting for ax1
+    ax1.axhline(y=0, color="black", linestyle='dotted', linewidth=1, alpha=0.5)
+    ax1.set_xlim(-0.3, 1.5)
+    ax1.set_ylim(-0.51, 1)
+    ax1.set_yticks(np.arange(-0.5, 1.1, 0.5))
+    ax1.set_xticks([0, 1])
+    ax1.set_xticklabels(['trained\narena', 'trained\nwheel'], fontsize=18)
+    xcolors = ["#195A2C", "#7D0C81"]
+    for xtick, xcolor in zip(ax1.get_xticklabels(), xcolors):
+        xtick.set_color(xcolor)
+    ax1.set_ylabel('correlation (pred. vs obsv.)', fontsize=18)
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    ax1.tick_params(axis='y', labelsize=16)
+
+
+    # gather wheel decoding performance for each session distinguished by brain region
+    corr_wheel_list = []
+    corr_arena_to_wheel_list = []
+    brain_regions_wheel = []
+    subject_ids_wheel = []
+
+    for session in all_session_results:
+        if session.decoding is None:
+            continue
+        
+        test_data = session.decoding.test_data
+        predictions = session.decoding.prediction
+        
+        corr_wheel = np.corrcoef(test_data.speed_wheel, predictions.wheel_to_wheel)[0, 1]
+        corr_arena_to_wheel = np.corrcoef(test_data.speed_wheel, predictions.arena_to_wheel)[0, 1]
+        
+        corr_wheel_list.append(corr_wheel)
+        corr_arena_to_wheel_list.append(corr_arena_to_wheel)
+        subject_ids_wheel.append(session.metadata.subject_id) 
+        
+        if session.metadata.subject_id == 'EB036':
+            brain_regions_wheel.append('hippocampus')
+        elif session.metadata.subject_id == 'EB037':
+            brain_regions_wheel.append('striatum')
+        else:
+            brain_regions_wheel.append('secondary motor cortex')
+
+    corr_wheel = np.array(corr_wheel_list)
+    corr_arena_to_wheel = np.array(corr_arena_to_wheel_list)
+
+    # pot individual sessions for ax2
+    for i in range(len(corr_wheel)):
+        region = brain_regions_wheel[i]
+        subject = subject_ids_wheel[i]
+        
+        if region == 'hippocampus':
+            color = colors['hippocampus']
+        elif region == 'striatum':
+            color = colors['striatum']
+        else: # It's secondary motor cortex
+            mos_label = mos_mapping.get(subject, 'MOs(1)')
+            color = colors[mos_label]
+
+        jitter = np.random.uniform(-0.05, 0.05, 2)
+        
+        ax2.plot([1 + jitter[1], 0 + jitter[0]], [corr_wheel[i], corr_arena_to_wheel[i]], 
+                '--', color=color, alpha=0.3, linewidth=1)
+        
+        ax2.scatter([1 + jitter[1], 0 + jitter[0]], [corr_wheel[i], corr_arena_to_wheel[i]], 
+                color=color, alpha=0.7, s=70, zorder=3, edgecolors='none', linewidth=0.5)
+
+    # calculate and plot means
+    mean_wheel = np.mean(corr_wheel)
+    mean_arena_to_wheel = np.mean(corr_arena_to_wheel)
+    ax2.plot([0.8, 1.2], [mean_wheel, mean_wheel], color='#7D0C81', linewidth=3, zorder=5, ls='dotted')
+    ax2.plot([-0.2, 0.2], [mean_arena_to_wheel, mean_arena_to_wheel], color='#195A2C', linewidth=3, zorder=5, ls='dotted')
+
+    # formatting for ax2
+    ax2.axhline(y=0, color="black", linestyle='dotted', linewidth=1, alpha=0.5)
+    ax2.set_xlim(-0.3, 1.5)
+    ax2.set_ylim(-0.51, 1)
+    ax2.set_yticks([])
+    ax2.set_xticks([0, 1])
+    ax2.set_xticklabels(['trained\narena', 'trained\nwheel'], fontsize=18)
+    for xtick, xcolor in zip(ax2.get_xticklabels(), xcolors):
+        xtick.set_color(xcolor)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    ax2.tick_params(axis='y', labelsize=14)
+
+
+    plt.rcParams['font.sans-serif'] = ['Arial']
+    plt.tight_layout(rect=[0, 0, 0.85, 1]) 
+
+
+
+
+   
