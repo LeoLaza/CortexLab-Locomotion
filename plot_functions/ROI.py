@@ -128,7 +128,7 @@ def plot_rotary_wheel_alignment(rotary_position, mask_wheel, mask_arena, corner,
 
 
 
-def plot_annotated_frame(metadata, behavior, dlc_df, selected_bodyparts, frame_idx, video_path):
+def plot_annotated_frame(metadata, behavior, selected_bodyparts, frame_idx):
 
     """
     Plot single video frame annotated with bodypart positions based on DLC model.
@@ -153,7 +153,7 @@ def plot_annotated_frame(metadata, behavior, dlc_df, selected_bodyparts, frame_i
         path to video file
     """
 
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(metadata.video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
     ret, frame = cap.read()
     cap.release()
@@ -166,11 +166,11 @@ def plot_annotated_frame(metadata, behavior, dlc_df, selected_bodyparts, frame_i
     vis_frame = frame.copy()
     
     # Draw all DLC bodyparts in cyan
-    bodyparts = dlc_df.columns.get_level_values(0).unique()
+    bodyparts = behavior.dlc_df.columns.get_level_values(0).unique()
     for bodypart in bodyparts:
         try:
-            x = dlc_df[(bodypart, 'x')].iloc[frame_idx]
-            y = dlc_df[(bodypart, 'y')].iloc[frame_idx]
+            x = behavior.dlc_df[(bodypart, 'x')].iloc[frame_idx]
+            y = behavior.dlc_df[(bodypart, 'y')].iloc[frame_idx]
             
             if  not (np.isnan(x) or np.isnan(y)):
                 if bodypart in selected_bodyparts:

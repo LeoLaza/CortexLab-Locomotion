@@ -161,7 +161,7 @@ def plot_reliability_occupation(all_session_results):
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
 
-def plot_stability_speed_distrubution_similarity(all_session_results):
+def plot_stability_speed_distribution_similarity(all_session_results):
     """
     Plot correlation between session stability and similarity of speed distributions across contexts.
 
@@ -318,7 +318,7 @@ def plot_mean_speed_comparison(all_session_results):
     plt.tight_layout()
 
 
-def plot_locomotion_detection(behavior, running_arena, running_wheel, w_start=0, w_end=200, 
+def plot_locomotion_detection(behavior, w_start=0, w_end=200, 
                              onset_threshold=2):
         """
         Plot speed traces with positon masks and detected locomotion bouts.
@@ -350,7 +350,7 @@ def plot_locomotion_detection(behavior, running_arena, running_wheel, w_start=0,
         # plot detected locomotion bouts arena
         locomotion_height = np.ones_like(time) * 0.8
         ax1.fill_between(time, 0, locomotion_height, 
-                        where=running_arena[w_start:w_end],
+                        where=behavior.run_arena[w_start:w_end],
                         color='#0B3D0B', alpha=0.8, label='locomotion bout')
         
         # plot onset threshold
@@ -372,7 +372,7 @@ def plot_locomotion_detection(behavior, running_arena, running_wheel, w_start=0,
         
         # plot detected locomotion bouts wheel
         ax2.fill_between(time, 0, locomotion_height, 
-                        where=running_wheel[w_start:w_end],
+                        where=behavior.run_arena[w_start:w_end],
                         color='#3D053F', alpha=0.8, label='locomotion bout')
         
         # plot onset threshold 
@@ -380,7 +380,7 @@ def plot_locomotion_detection(behavior, running_arena, running_wheel, w_start=0,
 
         # format wheel panel
         ax2.set_ylabel('wheel speed (cm/s)', fontsize=11)
-        ax2.set_ylim(0, max(15, behavior.speed_wheel[w_start:w_end].max()))
+        ax2.set_ylim(0, max(15, behavior.run_wheel[w_start:w_end].max()))
         ax2.set_xticks([])
         ax2.set_yticks(np.arange(0, 30.1, 30))
         ax2.tick_params(axis='y', labelsize=11)

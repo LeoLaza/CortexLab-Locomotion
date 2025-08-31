@@ -36,7 +36,8 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
                                        sharex=True, dpi=300)
 
     # set speed to Nan when not in context
-    speed[~mask] = np.nan
+    speed = speed.copy()
+    speed[~mask] = 0
 
     # get neurons with highest positive and negative correlations
     pos_idx = np.where(correlations > 0)[0]
@@ -68,7 +69,7 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
     # plot speed
     axes[0].plot(speed[w_start:w_end], color=color, linewidth=1.5)
     axes[0].set_ylabel('speed\n(cm/s)', fontsize=16)
-    axes[0].set_ylim(0, math.ceil(int(max(speed[w_start:w_end])) // 5 + 1)*5)
+    axes[0].set_ylim(0, math.ceil(int(np.nanmax(speed[w_start:w_end])) // 5 + 1)*5)
     axes[0].set_yticks(np.arange(0,50.1,50))
     axes[0].tick_params(axis='y', labelsize=16) 
         
@@ -101,7 +102,7 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
 
         # transform window size to minutes fo x-label
         window_minutes = (w_end - w_start) / 10 / 60
-        axes[-1].set_xlabel(f'time (min), window size: {window_minutes:.1f} min', fontsize=16)
+        axes[-1].set_xlabel(f'{window_minutes:.0f} min', fontsize=16, loc='left')
 
     
     plt.tight_layout()
@@ -131,7 +132,7 @@ def plot_arena_reliability(corr_arena_half1, corr_arena_half2):
 
     # optional display reliability as title
     reliability = np.corrcoef(corr_arena_half1, corr_arena_half2)[0,1]
-    ax.set_title(f'Reliability: {reliability:.2f}', fontsize=20)
+    ax.set_title(f'reliability: {reliability:.2f}', fontsize=20)
 
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
@@ -160,7 +161,7 @@ def plot_wheel_reliability(corr_wheel_haf1, corr_wheel_half2):
 
     # optional display reliability as title
     reliability = np.corrcoef(corr_wheel_haf1, corr_wheel_half2)[0,1]
-    ax.set_title(f'Reliability: {reliability:.2f}', fontsize=20)
+    ax.set_title(f'reliability: {reliability:.2f}', fontsize=20)
 
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
@@ -189,7 +190,7 @@ def plot_arena_half1_vs_wheel_half2(corr_arena_half1, corr_wheel_half2):
 
     # optional display correlation as title
     r_ar1__wh2 = np.corrcoef(corr_arena_half1, corr_wheel_half2)[0,1]
-    ax.set_title(f'Cross-context correlation: {r_ar1__wh2:.2f}', fontsize=20)
+    ax.set_title(f'cross-context correlation: {r_ar1__wh2:.2f}', fontsize=20)
 
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
@@ -218,7 +219,7 @@ def plot_arena_half2_vs_wheel_half1(corr_arena_half2, corr_wheel_half1):
 
     # optional display correlation as title
     r_ar2__wh1 = np.corrcoef(corr_arena_half2, corr_wheel_half1)[0,1]
-    ax.set_title(f'Cross-context correlation: {r_ar2__wh1:.2f}', fontsize=20)
+    ax.set_title(f'cross-context correlation: {r_ar2__wh1:.2f}', fontsize=20)
 
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
@@ -392,5 +393,124 @@ def plot_reliability_stability(all_session_results):
 
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
+
+
+
+
+
+def plot_speed_tuning(centers_arena, tuning_arena, sem_arena, centers_wheel, tuning_wheel, sem_wheel,
+                      corr_arena, corr_wheel, sig_arena, sig_wheel, category,
+                      speed_arena, speed_wheel):
+    """
+    Plot speed tuning curves for neurons selected based on category.
+    
+    Parameters:
+    centers_arena : array
+        
+    category : str
+        One of: 'arena-only', 'wheel-only', 'context-invariant', 
+                'context-switching', 'non-encoding'
+    """
+    
+    # define neuron category masks
+    arena_only_mask = sig_arena & ~sig_wheel
+    wheel_only_mask = ~sig_arena & sig_wheel
+    context_invariant_mask = sig_arena & sig_wheel & (np.sign(corr_arena) == np.sign(corr_wheel))
+    context_switching_mask = sig_arena & sig_wheel & (np.sign(corr_arena) != np.sign(corr_wheel))
+    non_encoding_mask = ~sig_arena & ~sig_wheel
+    
+    # calculate combined metric for some categories
+    combined_metric = np.abs(corr_arena) + np.abs(corr_wheel)
+    
+    # select mask, metric, and percentiles based on category
+    if category == 'arena-only':
+        selected_mask = arena_only_mask
+        selected_indices = np.where(selected_mask)[0]
+        metric = np.abs(corr_arena[selected_mask])
+        percentiles = [100, 75]
+        
+    elif category == 'wheel-only':
+        selected_mask = wheel_only_mask
+        selected_indices = np.where(selected_mask)[0]
+        metric = np.abs(corr_wheel[selected_mask])
+        percentiles = [100, 75]
+        
+    elif category == 'context-invariant':
+        selected_mask = context_invariant_mask
+        selected_indices = np.where(selected_mask)[0]
+        metric = combined_metric[selected_mask]
+        percentiles = [100, 75]
+        
+    elif category == 'context-switching':
+        selected_mask = context_switching_mask
+        selected_indices = np.where(selected_mask)[0]
+        metric = combined_metric[selected_mask]
+        percentiles = [100, 75]
+        
+    elif category == 'non-encoding':
+        selected_mask = non_encoding_mask
+        selected_indices = np.where(selected_mask)[0]
+        metric = combined_metric[selected_mask]
+        percentiles = [0, 25]
+        
+    else:
+        raise ValueError(f"Unknown category: {category}")
+    
+    # check if we have neurons in this category
+    if len(selected_indices) == 0:
+        print(f"No neurons found in category: {category}")
+        return None
+
+    
+    fig, axes = plt.subplots(2, 1, figsize=(3.5, 6))
+
+    for idx, pct in enumerate(percentiles):
+        ax = axes[idx]
+        
+        # find the percentile value among selected neurons
+        if pct == 100:
+            percentile_value = np.max(metric)
+        elif pct == 0:
+            percentile_value = np.min(metric)
+        else:
+            percentile_value = np.percentile(metric, pct)
+        
+        # find which selected neuron is closest to this percentile
+        idx_in_selected = np.argmin(np.abs(metric - percentile_value))
+        neuron_idx = selected_indices[idx_in_selected]
+        
+        # get max rate for this neuron
+        max_rate = max(np.nanmax(tuning_arena[neuron_idx, :]), 
+                    np.nanmax(tuning_wheel[neuron_idx, :]))
+        
+        # plot arena with shaded error region 
+        ax.fill_between(centers_arena, 
+                        tuning_arena[neuron_idx, :] - sem_arena[neuron_idx, :],
+                        tuning_arena[neuron_idx, :] + sem_arena[neuron_idx, :],
+                        color='#195A2C', alpha=0.3)
+        ax.plot(centers_arena, tuning_arena[neuron_idx, :], 
+                'o', color='#195A2C', markersize=3)
+        
+        # plot wheel with shaded error region
+        ax.fill_between(centers_wheel, 
+                        tuning_wheel[neuron_idx, :] - sem_wheel[neuron_idx, :],
+                        tuning_wheel[neuron_idx, :] + sem_wheel[neuron_idx, :],
+                        color='#7D0C81', alpha=0.3)
+        ax.plot(centers_wheel, tuning_wheel[neuron_idx, :], 
+                'o', color='#7D0C81', markersize=3)
+        
+        # axis formatting
+        ax.set_xlabel('running speed (cm/s)', fontsize=14)
+        ax.set_ylabel('firing rate (Hz)', fontsize=14)
+        max_rate_rounded = round(max_rate, 2)
+        ax.set_yticks([0, max_rate_rounded])
+        ax.set_yticklabels(['0', f'{max_rate_rounded:.2f}'])
+        ax.set_xlim(-0.5, max(np.max(speed_arena), np.max(speed_wheel) + 0.5))
+        ax.set_ylim(0, max_rate * 1.2)  # add 30% padding above max for error bars 
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='both', labelsize=12)
+    
+ 
 
 

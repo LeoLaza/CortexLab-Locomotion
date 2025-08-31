@@ -42,7 +42,7 @@ def load_session_data(subject_id, date, target_freq=10):
     mouse_y = temporally_align_variable(mouse_y, bin_centers, cam_timestamps)
 
 
-    # define context
+    # define context based on position
     _, roi_x, roi_y, roi_radius = get_ROI(subject_id, date)
     pos_arena, pos_wheel, corner = get_position_masks(mouse_x, mouse_y, roi_x, roi_y, roi_radius, subject_id)
     
@@ -50,8 +50,9 @@ def load_session_data(subject_id, date, target_freq=10):
     speed_arena = calculate_oa_speed(mouse_x, mouse_y, bin_width)
     speed_wheel = calculate_wh_speed(rotary_position, bin_width)
 
-    running_arena, bout_info_arena= get_locomotion_bouts(speed_arena, pos_arena)
-    running_wheel, bout_info_wheel= get_locomotion_bouts(speed_wheel, pos_wheel)
+    # identify periods of running in either context 
+    run_arena, bout_info_arena= get_locomotion_bouts(speed_arena, pos_arena)
+    run_wheel, bout_info_wheel= get_locomotion_bouts(speed_wheel, pos_wheel)
     
 
     # generate spike histogram 
@@ -84,8 +85,6 @@ def load_session_data(subject_id, date, target_freq=10):
     except Exception as e:
         print('error:{e}') 
         spike_counts= None
-    
-
 
     metadata = Bunch(
 
@@ -95,10 +94,12 @@ def load_session_data(subject_id, date, target_freq=10):
         exp_onset=exp_onset,
         roi_x=roi_x,
         roi_y= roi_y,
-        roi_radius=roi_radius
+        roi_radius=roi_radius,
+        video_path= fr'\\znas\Lab\Share\Maja\labelled_DLC_videos\{subject_id}_{date}.mp4'
     )
 
     behavior = Bunch(
+        dlc_df= dlc_df,
         bodypart_x= bodypart_x,
         bodypart_y= bodypart_y,
         mouse_x= mouse_x,
@@ -106,8 +107,10 @@ def load_session_data(subject_id, date, target_freq=10):
         rotary_position = rotary_position,
         speed_arena=speed_arena,
         speed_wheel =speed_wheel,
-        mask_arena=running_arena,
-        mask_wheel=running_wheel,
+        run_arena=run_arena,
+        run_wheel=run_wheel,
+        pos_arena= pos_arena,
+        pos_wheel= pos_wheel,
         corner=corner,  
         )
 
@@ -116,18 +119,24 @@ def load_session_data(subject_id, date, target_freq=10):
     return metadata, behavior, spike_counts
 
 
-def compute_behavioral_summary(behavior, metadata):
+def compute_behavioral_summary(behavior, metadata, run=False):
     
     # Extract existing data
     speed_arena = behavior.speed_arena
     speed_wheel = behavior.speed_wheel
-    mask_arena = behavior.mask_arena
-    mask_wheel = behavior.mask_wheel
     bin_width = metadata.bin_width
+
+    if run:
+        mask_arena= behavior.run_arena 
+        mask_wheel= behavior.run_wheel
+    
+    else:
+        mask_arena= behavior.pos_arena 
+        mask_wheel= behavior.pos_wheel
     
     # Time analysis
-    time_arena = np.sum(mask_arena) * bin_width / 60  # minutes
-    time_wheel = np.sum(mask_wheel) * bin_width / 60  # minutes
+    time_arena = np.sum(mask_arena) * bin_width / 60  
+    time_wheel = np.sum(mask_wheel) * bin_width / 60  
     total_time = (len(mask_arena) * bin_width) / 60
     
     occupancy_arena = (time_arena / total_time) * 100
@@ -150,7 +159,7 @@ def compute_behavioral_summary(behavior, metadata):
     return behavior
 
 
-def perform_correlation_analyses(behavior, spike_counts):
+def perform_correlation_analyses(behavior, spike_counts, run=False):
 
     # think of validation for behavior  
     if spike_counts is None:
@@ -159,8 +168,14 @@ def perform_correlation_analyses(behavior, spike_counts):
 
     speed_arena= behavior.speed_arena
     speed_wheel= behavior.speed_wheel
-    mask_arena= behavior.mask_arena 
-    mask_wheel= behavior.mask_wheel
+
+    if run:
+        mask_arena= behavior.run_arena 
+        mask_wheel= behavior.run_wheel
+    
+    else:
+        mask_arena= behavior.pos_arena 
+        mask_wheel= behavior.pos_wheel
 
     corr_arena, corr_wheel = get_speed_correlations(
         spike_counts, 
@@ -170,7 +185,7 @@ def perform_correlation_analyses(behavior, spike_counts):
         mask_wheel
     )
 
-    # Cross-context correlation
+    # cross-context correlation
     valid = ~(np.isnan(corr_arena) | np.isnan(corr_wheel))
     corr_cross_context = np.corrcoef(corr_arena[valid], corr_wheel[valid])[0, 1] if np.sum(valid) > 1 else np.nan
     
@@ -190,6 +205,10 @@ def perform_correlation_analyses(behavior, spike_counts):
         corr_wheel_half2, 
         reliability_arena, 
         reliability_wheel )
+    
+    centers_arena, firing_rates_arena, sem_arena = compute_speed_tuning(spike_counts, speed_arena, mask_arena, n_bins=10, dt=0.1)
+    centers_wheel, firing_rates_wheel, sem_wheel = compute_speed_tuning(spike_counts, speed_wheel, mask_wheel, n_bins=10, dt=0.1)
+    
 
     correlation_results = Bunch(
   
@@ -207,7 +226,14 @@ def perform_correlation_analyses(behavior, spike_counts):
         reliability_arena=reliability_arena,
         reliability_wheel=reliability_wheel,
         reliability= reliability,
-        stability=stability
+        stability=stability,
+
+        centers_arena= centers_arena,
+        centers_wheel= centers_wheel,
+        firing_rates_arena= firing_rates_arena,
+        firing_rates_wheel= firing_rates_wheel,
+        sem_arena= sem_arena,
+        sem_wheel= sem_wheel
     )
         
         
@@ -225,14 +251,20 @@ def get_lag_metrics(cross_corr, lags):
         }
 
 
-def perform_decoding_analyses(behavior, spike_counts, leaveout=None, alpha=None):
+def perform_decoding_analyses(behavior, spike_counts, run=False, leaveout=None, alpha=None):
 
     if spike_counts is None:
         print("No spike counts were provided")
         return None
     
-    mask_arena= behavior.mask_arena 
-    mask_wheel= behavior.mask_wheel
+    if run:
+        mask_arena= behavior.run_arena 
+        mask_wheel= behavior.run_wheel
+    
+    else:
+        mask_arena= behavior.pos_arena 
+        mask_wheel= behavior.pos_wheel
+
 
     speed_arena= behavior.speed_arena
     speed_wheel= behavior.speed_wheel
@@ -300,25 +332,24 @@ def perform_decoding_analyses(behavior, spike_counts, leaveout=None, alpha=None)
     return decoding_results
 
 
-def analyze_single_session(subject_id, date, target_freq, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
-    # Load data
+def analyze_single_session(subject_id, date, target_freq, run=False, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
+   
+     # load data
+    metadata, behavior, spike_counts = load_session_data(subject_id, date, target_freq)
+    behavior = compute_behavioral_summary(behavior, metadata, run)
 
-    
-    metadata, behavior, spike_counts = load_session_data(subject_id, date, target_freq=target_freq)
-
-    behavior = compute_behavioral_summary(behavior, metadata)
-
+    # set results to None by default
     correlation_results = None
     decoding_results = None
 
     
     # Run analyses
     if correlation:
-        correlation_results = perform_correlation_analyses(behavior, spike_counts)
+        correlation_results = perform_correlation_analyses(behavior, spike_counts, run)
 
     if decoding:
-        decoding_results = perform_decoding_analyses(behavior, spike_counts, 
-                                                leaveout=leaveout, alpha=alpha)
+        decoding_results = perform_decoding_analyses(behavior, spike_counts,run, 
+                                                leaveout, alpha)
         
     
     return Bunch(
@@ -329,8 +360,8 @@ def analyze_single_session(subject_id, date, target_freq, correlation=True, deco
         decoding=decoding_results,
     )
 
-def analyze_all_sessions(session_list, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
-    return [analyze_single_session(subject_id, date, correlation=correlation, decoding=decoding, leaveout=leaveout, alpha=alpha) for subject_id, date in session_list]
+def analyze_all_sessions(session_list, target_freq, run=False, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
+    return [analyze_single_session(subject_id, date, target_freq, run, correlation=correlation, decoding=decoding, leaveout=leaveout, alpha=alpha) for subject_id, date in session_list]
 
 
 

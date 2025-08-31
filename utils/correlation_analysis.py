@@ -105,6 +105,7 @@ def get_reliability_stability(corr_arena_half1, corr_arena_half2, corr_wheel_hal
         return reliability, stability
 
 def compute_speed_tuning(spike_counts, speed, mask, speed_bins, dt=0.1):
+    
     context_speed = speed[mask]
     context_spikes = spike_counts[:, mask]
     
@@ -200,8 +201,6 @@ def run_permutation_test(all_session_results, alpha=0.05):
         )
 
 
-
-
 def categorise_neurons(corr_arena, corr_wheel, sig_arena, sig_wheel):
 
 
@@ -212,4 +211,4 @@ def categorise_neurons(corr_arena, corr_wheel, sig_arena, sig_wheel):
              context_switching= sig_arena & sig_wheel & (np.sign(corr_arena) != np.sign(corr_wheel)),
              non_encoding = ~sig_arena & ~sig_wheel
         )
-    
+
