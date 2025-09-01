@@ -56,8 +56,8 @@ def plot_roi(roi_x, roi_y, roi_radius,mouse_x,mouse_y,mask_arena, mask_wheel):
     ax.spines['left'].set_linewidth(1.5)
 
     # optional adjust dimension for prefered visualization
-    ax.set_xlim( left=np.min(mouse_x)-5, right= np.max(mouse_x)+1)
-    ax.set_ylim( bottom=np.min(mouse_y)-1, top= np.max(mouse_y)+5)
+    #ax.set_xlim( left=np.min(mouse_x)-5, right= np.max(mouse_x)+1)
+    #ax.set_ylim( bottom=np.min(mouse_y)-1, top= np.max(mouse_y)+5)
 
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
@@ -201,6 +201,8 @@ def plot_annotated_frame(metadata, behavior, selected_bodyparts, frame_idx):
     plt.figure(figsize=(12, 9))
     plt.imshow(vis_frame_rgb)
     plt.axis('off')
+
+    
 
     
 

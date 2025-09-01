@@ -134,7 +134,7 @@ def compute_speed_tuning(spike_counts, speed, mask, speed_bins, dt=0.1):
     return bin_centers, firing_rates, firing_sem
 
 
-def run_permutation_test(all_session_results, alpha=0.05):
+def run_permutation_test(all_session_results, run= False, alpha=0.05):
 
 
     for i, experimental_session in enumerate(all_session_results):
@@ -155,14 +155,24 @@ def run_permutation_test(all_session_results, alpha=0.05):
                 speed_length = len(control.behavior.speed_arena)
                 min_length = min(spikes_length, speed_length)
 
+                if run:
+                    control_corr_arena, control_corr_wheel = get_speed_correlations(
+                        experimental_session.spike_counts[:, :min_length],
+                        control.behavior.speed_arena[:min_length],
+                        control.behavior.speed_wheel[:min_length],
+                        control.behavior.run_arena[:min_length],
+                        control.behavior.run_wheel[:min_length]
+                )
+
+                else:
+                     control_corr_arena, control_corr_wheel = get_speed_correlations(
+                        experimental_session.spike_counts[:, :min_length],
+                        control.behavior.speed_arena[:min_length],
+                        control.behavior.speed_wheel[:min_length],
+                        control.behavior.run_arena[:min_length],
+                        control.behavior.run_wheel[:min_length]
+                )
                 
-                control_corr_arena, control_corr_wheel = get_speed_correlations(
-                    experimental_session.spike_counts[:, :min_length],
-                    control.behavior.speed_arena[:min_length],
-                    control.behavior.speed_wheel[:min_length],
-                    control.behavior.mask_arena[:min_length],
-                    control.behavior.mask_wheel[:min_length]
-            )
 
                 null_arena.append(control_corr_arena)
                 null_wheel.append(control_corr_wheel)

@@ -3,84 +3,84 @@ import numpy as np
 from matplotlib.lines import Line2D
 
 
-def plot_weight_correlation(weights_arena, weights_wheel):
-
-    # plot correlation of weights 
-    fig, ax = plt.subplots(figsize=(6, 6),dpi=300)
-    ax.scatter(weights_arena, weights_wheel, alpha=0.7, color="#141414", zorder=2, s=80)
-
-    # axis formatting 
-    ax.set_xlabel('weights arena', fontsize=20, color="#195A2C")
-    ax.set_ylabel('weights wheel', fontsize=20, color="#7D0C81")
-    ax.axhline(0, color='k', linewidth=1, alpha=0.5, zorder=1, ls='--')
-    ax.axvline(0, color='k', linewidth=1, alpha=0.5, zorder=1, ls='--')
-    ax.set_xlim(-0.15, 0.15)
-    ax.set_ylim(-0.15, 0.15)
-    ax.set_xticks(np.arange(-0.15, 0.151, 0.15))  
-    ax.set_yticks(np.arange(-0.15, 0.151, 0.15))
-    ax.tick_params(axis='x', pad=10) 
-    ax.tick_params(axis='y', pad=10)
-    ax.tick_params(axis='both', labelsize=20)
-
-    # remove top and right spines
-    ax.spines[['right', 'top']].set_visible(False)
-
-    plt.tight_layout()
-
-
-def plot_decoding_predictions(measured_speed, within_context_prediction, cross_context_prediction, w_start, w_end, color="#141414"):
+def plot_decoding_predictions(measured_speed_arena, arena_pred_arena, wheel_pred_arena, 
+                             measured_speed_wheel, wheel_pred_wheel, arena_pred_wheel, 
+                             w_start, w_end):
     
-    """
-    Plot observed and predicted speed (within- and cross-context) for a selected time window.
-
-    Parameters:
-    measured_speed : numpy array
-        observed speed on test set
-    within_context_prediction : numpy array
-        predicted speed from within-context model
-    cross_context_prediction : numpy array
-        predicted speed from cross-context model
-    w_start : int
-        start index for window to plot
-    w_end : int    
-        end index for window to plot
-    color : str
-        color for speed traces (for arena: "#195A2C", for wheel: "#7D0C81")
-    
-    """
+    # calculate correlations
+    corr_arena_arena = np.corrcoef(measured_speed_arena[w_start:w_end], 
+                                arena_pred_arena[w_start:w_end])[0,1]
+    corr_wheel_arena = np.corrcoef(measured_speed_arena[w_start:w_end], 
+                                wheel_pred_arena[w_start:w_end])[0,1]
+    corr_wheel_wheel = np.corrcoef(measured_speed_wheel[w_start:w_end], 
+                                wheel_pred_wheel[w_start:w_end])[0,1]
+    corr_arena_wheel = np.corrcoef(measured_speed_wheel[w_start:w_end], 
+                                arena_pred_wheel[w_start:w_end])[0,1]
                 
-    # create figure
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 3), 
-                                        gridspec_kw={'height_ratios': [1, 1, 1]},
-                                        sharex=True)
+
+    fig, axes = plt.subplots(3, 2, figsize=(8, 3))
         
-    # plot velocities
-    ax1.plot(measured_speed[w_start:w_end], color=color, alpha=0.8)
-    ax1.set_xticklabels([])
-    ax1.set_xticks([])
-    ax1.set_yticks([])
-    ax1.spines['top'].set_visible(False)
-    ax1.spines['right'].set_visible(False)
-    ax1.spines['bottom'].set_visible(False)
-    ax1.text(0, 0.5, 'observed\nwheel', transform=ax1.transAxes, fontsize=12, color='#7D0C81', horizontalalignment='right', verticalalignment='center')
+    # ARENA CONTEXT (left column)
+    # observed arena
+    axes[0, 0].plot(measured_speed_arena[w_start:w_end], color="#195A2C", alpha=0.8) 
+    axes[0, 0].set_xticklabels([])
+    axes[0, 0].set_xticks([])
+    axes[0, 0].spines['top'].set_visible(False)
+    axes[0, 0].spines['right'].set_visible(False)
+    axes[0, 0].spines['bottom'].set_visible(False)
+    axes[0, 0].text(-0.13, 0.5, 'observed', transform=axes[0, 0].transAxes, fontsize=12,  
+             color="#141414", horizontalalignment='right', verticalalignment='center')
     
+    # Arena model predicting arena
+    axes[1, 0].plot(arena_pred_arena[w_start:w_end], color="#195A2C", alpha=0.8)
+    axes[1, 0].set_xticklabels([])
+    axes[1, 0].set_xticks([])
+    axes[1, 0].spines['top'].set_visible(False)
+    axes[1, 0].spines['right'].set_visible(False)
+    axes[1, 0].spines['bottom'].set_visible(False)
+    axes[1, 0].text(-0.13, 0.5, 'arena\nmodel', transform=axes[1, 0].transAxes, fontsize=12,  
+             color="#141414", horizontalalignment='right', verticalalignment='center')
+    axes[1, 0].text(0.98, 1.20, f'r={corr_arena_arena:.2f}', transform=axes[1, 0].transAxes, 
+             fontsize=10, horizontalalignment='right', verticalalignment='top')
+  
+    # Wheel model predicting arena
+    axes[2, 0].plot(wheel_pred_arena[w_start:w_end], color="#195A2C", alpha=0.8)
+    axes[2, 0].set_xticklabels([])
+    axes[2, 0].set_xticks([])
+    axes[2, 0].spines['top'].set_visible(False)
+    axes[2, 0].spines['right'].set_visible(False)
+    axes[2, 0].text(-0.13, 0.5, 'wheel\nmodel', transform=axes[2, 0].transAxes, fontsize=12,  
+             color="#141414", horizontalalignment='right', verticalalignment='center')
+    axes[2, 0].text(0.98, 1.20, f'r={corr_wheel_arena:.2f}', transform=axes[2, 0].transAxes, 
+             fontsize=10, horizontalalignment='right', verticalalignment='top')
 
-    ax2.plot(within_context_prediction[w_start:w_end], color=color, alpha=0.8)
-    ax2.set_xticklabels([])
-    ax2.set_xticks([])
-    ax2.set_yticks([])
-    ax2.spines['top'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
-    ax2.spines['bottom'].set_visible(False)
-    ax2.text(0, 0.5, 'wheel\nmodel', transform=ax2.transAxes, fontsize=12, color='#7D0C81', horizontalalignment='right', verticalalignment='center')  # Signature green
+    # WHEEL CONTEXT (right column)
+    # observed wheel
+    axes[0, 1].plot(measured_speed_wheel[w_start:w_end], color="#7D0C81", alpha=0.8)
+    axes[0, 1].set_xticklabels([])
+    axes[0, 1].set_xticks([])
+    axes[0, 1].spines['top'].set_visible(False)
+    axes[0, 1].spines['right'].set_visible(False)
+    axes[0, 1].spines['bottom'].set_visible(False)
+    
+    # arena model predicting wheel
+    axes[1, 1].plot(arena_pred_wheel[w_start:w_end], color="#7D0C81", alpha=0.8)  
+    axes[1, 1].set_xticklabels([])
+    axes[1, 1].set_xticks([])
+    axes[1, 1].spines['top'].set_visible(False)
+    axes[1, 1].spines['right'].set_visible(False)
+    axes[1, 1].spines['bottom'].set_visible(False)
+    axes[1, 1].text(0.98, 1.20, f'r={corr_arena_wheel:.2f}', transform=axes[1, 1].transAxes, 
+             fontsize=10, horizontalalignment='right', verticalalignment='top')
 
-    ax3.plot(cross_context_prediction[w_start:w_end], color=color, alpha=0.8)
-    ax3.set_xticklabels([])
-    ax3.set_xticks([])
-    ax3.set_yticks([])
-    ax3.spines['top'].set_visible(False)
-    ax3.spines['right'].set_visible(False)
-    ax3.text(0, 0.5, 'arena\nmodel', transform=ax3.transAxes, fontsize=12, color="#195A2C", horizontalalignment='right', verticalalignment='center')  # Signature purple
+    # wheel model predicting wheel  
+    axes[2, 1].plot(wheel_pred_wheel[w_start:w_end], color="#7D0C81", alpha=0.8) 
+    axes[2, 1].set_xticklabels([])
+    axes[2, 1].set_xticks([])
+    axes[2, 1].spines['top'].set_visible(False)
+    axes[2, 1].spines['right'].set_visible(False)
+    axes[2, 1].text(0.98, 1.20, f'r={corr_wheel_wheel:.2f}', transform= axes[2, 1].transAxes, 
+             fontsize=10, horizontalalignment='right', verticalalignment='top')   
     
     plt.rcParams['font.sans-serif'] = ['Arial']
     plt.tight_layout()
@@ -116,7 +116,7 @@ def plot_decoding_performance_comparison(all_session_results):
 
 
     # create side by side figure with two subplots (left: arena, right: wheel)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5), dpi=300)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
 
     # gather arena decoding performance for each session distinguished by brain region
     corr_arena_list = []
@@ -268,6 +268,28 @@ def plot_decoding_performance_comparison(all_session_results):
     plt.tight_layout(rect=[0, 0, 0.85, 1]) 
 
 
+def plot_weight_correlation(weights_arena, weights_wheel):
 
+    # plot correlation of weights 
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(weights_arena, weights_wheel, alpha=0.7, color="#141414", zorder=2, s=80)
+
+    # axis formatting 
+    ax.set_xlabel('weights arena', fontsize=20, color="#195A2C")
+    ax.set_ylabel('weights wheel', fontsize=20, color="#7D0C81")
+    ax.axhline(0, color='k', linewidth=1, alpha=0.5, zorder=1, ls='--')
+    ax.axvline(0, color='k', linewidth=1, alpha=0.5, zorder=1, ls='--')
+    ax.set_xlim(-0.15, 0.15)
+    ax.set_ylim(-0.15, 0.15)
+    ax.set_xticks(np.arange(-0.15, 0.151, 0.15))  
+    ax.set_yticks(np.arange(-0.15, 0.151, 0.15))
+    ax.tick_params(axis='x', pad=10) 
+    ax.tick_params(axis='y', pad=10)
+    ax.tick_params(axis='both', labelsize=20)
+
+    # remove top and right spines
+    ax.spines[['right', 'top']].set_visible(False)
+
+    plt.tight_layout()
 
    

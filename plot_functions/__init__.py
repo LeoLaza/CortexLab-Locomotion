@@ -1,4 +1,4 @@
-from .behavior import (
+from .behavior_control import (
     plot_context_speed_distributions,
     plot_context_preference,
     plot_reliability_occupation,
@@ -14,7 +14,8 @@ from .correlation import (
     plot_arena_half1_vs_wheel_half2,
     plot_arena_half2_vs_wheel_half1,
     plot_correlation_histogram,
-    plot_reliability_stability
+    plot_reliability_stability, 
+    plot_speed_tuning
 )
 
 from .decoding import(
@@ -27,5 +28,11 @@ from .ROI import(
     plot_roi, 
     plot_rotary_wheel_alignment, 
     plot_annotated_frame
+)
+
+from .brain_regions import(
+    plot_category_scatter,
+    plot_category_pie_chart,
+    plot_correlation_distributions,
 )
     

@@ -161,7 +161,7 @@ def plot_reliability_occupation(all_session_results):
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
 
-def plot_stability_speed_distribution_similarity(all_session_results):
+def plot_stability_speed_distribution_similarity(all_session_results, run=False):
     """
     Plot correlation between session stability and similarity of speed distributions across contexts.
 
@@ -182,9 +182,15 @@ def plot_stability_speed_distribution_similarity(all_session_results):
         
         if np.isnan(session.correlations.stability):
             continue
-        # extract speed data 
-        speed_arena = session.behavior.speed_arena[session.behavior.mask_arena]
-        speed_wheel = session.behavior.speed_wheel[session.behavior.mask_wheel]
+        # extract speed data
+
+        if run:
+            speed_arena = session.behavior.speed_arena[session.behavior.run_arena]
+            speed_wheel = session.behavior.speed_wheel[session.behavior.run_wheel]
+
+        else:
+            speed_arena = session.behavior.speed_arena[session.behavior.pos_arena]
+            speed_wheel = session.behavior.speed_wheel[session.behavior.pos_wheel]
         
         if len(speed_arena) == 0 or len(speed_wheel) == 0:
             continue
@@ -213,7 +219,7 @@ def plot_stability_speed_distribution_similarity(all_session_results):
         stabilities.append(session.correlations.stability)
 
     # create scatter plot
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(distribution_similarities, stabilities, 
             alpha=0.7, color="#141414", zorder=2, s=80)
 
@@ -344,7 +350,7 @@ def plot_locomotion_detection(behavior, w_start=0, w_end=200,
         ax1.plot(time, behavior.speed_arena[w_start:w_end], 'k-', linewidth=1.2, alpha=0.8, color= 'black')
         
         # plot position based arena mask
-        ax1.fill_between(time, 0, 30, where=behavior.mask_arena[w_start:w_end],
+        ax1.fill_between(time, 0, 30, where=behavior.pos_arena[w_start:w_end],
                         color='#195A2C', alpha=0.2, label='in arena')
         
         # plot detected locomotion bouts arena
@@ -358,7 +364,7 @@ def plot_locomotion_detection(behavior, w_start=0, w_end=200,
         
         # format arena panel
         ax1.set_ylabel('arena speed (cm/s)', fontsize=11)
-        ax1.set_ylim(0, max(15, behavior.speed_arena[w_start:w_end].max() * 1.1))
+        ax1.set_ylim(0, max(15, np.nanmax(behavior.speed_arena[w_start:w_end]) * 1.1))
         ax1.set_yticks(np.arange(0, 20.1, 20))
         ax1.tick_params(axis='y', labelsize=11)
     
@@ -367,12 +373,13 @@ def plot_locomotion_detection(behavior, w_start=0, w_end=200,
         ax2.plot(time, behavior.speed_wheel[w_start:w_end], 'k-', linewidth=1.2, alpha=0.8, color= 'black')
         
         # plot position based wheel mask
-        ax2.fill_between(time, 0, 40, where=behavior.mask_wheel[w_start:w_end],
+        wheel_max = max(15, np.nanmax(behavior.speed_wheel[w_start:w_end]) * 1.1)
+        ax2.fill_between(time, 0, wheel_max, where=behavior.pos_wheel[w_start:w_end],
                         color='#7D0C81', alpha=0.2, label='on wheel')
         
         # plot detected locomotion bouts wheel
         ax2.fill_between(time, 0, locomotion_height, 
-                        where=behavior.run_arena[w_start:w_end],
+                        where=behavior.run_wheel[w_start:w_end],
                         color='#3D053F', alpha=0.8, label='locomotion bout')
         
         # plot onset threshold 
@@ -380,7 +387,7 @@ def plot_locomotion_detection(behavior, w_start=0, w_end=200,
 
         # format wheel panel
         ax2.set_ylabel('wheel speed (cm/s)', fontsize=11)
-        ax2.set_ylim(0, max(15, behavior.run_wheel[w_start:w_end].max()))
+        ax2.set_ylim(0, max(15, np.nanmax(behavior.speed_wheel[w_start:w_end]) * 1.1))
         ax2.set_xticks([])
         ax2.set_yticks(np.arange(0, 30.1, 30))
         ax2.tick_params(axis='y', labelsize=11)

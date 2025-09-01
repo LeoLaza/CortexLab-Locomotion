@@ -13,9 +13,8 @@ from .behavioral_analysis import *
 from .correlation_analysis import *
 from .data_loading_and_preprocessing import *
 from .decoding_analysis import *
-import copy
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import correlate, correlation_lags
+from tqdm import tqdm
 
 
 
@@ -83,7 +82,7 @@ def load_session_data(subject_id, date, target_freq=10):
 
     
     except Exception as e:
-        print('error:{e}') 
+        print(f'error:{e}') 
         spike_counts= None
 
     metadata = Bunch(
@@ -163,7 +162,7 @@ def perform_correlation_analyses(behavior, spike_counts, run=False):
 
     # think of validation for behavior  
     if spike_counts is None:
-        print("No spike counts were provided")
+        print("No spike counts were provided for correlation")
         return None
 
     speed_arena= behavior.speed_arena
@@ -206,8 +205,17 @@ def perform_correlation_analyses(behavior, spike_counts, run=False):
         reliability_arena, 
         reliability_wheel )
     
-    centers_arena, firing_rates_arena, sem_arena = compute_speed_tuning(spike_counts, speed_arena, mask_arena, n_bins=10, dt=0.1)
-    centers_wheel, firing_rates_wheel, sem_wheel = compute_speed_tuning(spike_counts, speed_wheel, mask_wheel, n_bins=10, dt=0.1)
+    # for better modularity can seperate the speed tuning component 
+    max_speed_arena = np.nanmax(speed_arena[mask_arena])
+    max_speed_wheel = np.nanmax(speed_wheel[mask_wheel])
+
+    # Create bins with same width
+    bin_width = 2.0  # cm/s
+    bins_arena = np.arange(0, max_speed_arena + bin_width, bin_width)
+    bins_wheel = np.arange(0, max_speed_wheel + bin_width, bin_width)
+
+    centers_arena, firing_rates_arena, sem_arena = compute_speed_tuning(spike_counts, speed_arena, mask_arena, bins_arena, dt=0.1)
+    centers_wheel, firing_rates_wheel, sem_wheel = compute_speed_tuning(spike_counts, speed_wheel, mask_wheel, bins_wheel, dt=0.1)
     
 
     correlation_results = Bunch(
@@ -254,7 +262,7 @@ def get_lag_metrics(cross_corr, lags):
 def perform_decoding_analyses(behavior, spike_counts, run=False, leaveout=None, alpha=None):
 
     if spike_counts is None:
-        print("No spike counts were provided")
+        print("No spike counts were provided for decoding")
         return None
     
     if run:
@@ -361,7 +369,20 @@ def analyze_single_session(subject_id, date, target_freq, run=False, correlation
     )
 
 def analyze_all_sessions(session_list, target_freq, run=False, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
-    return [analyze_single_session(subject_id, date, target_freq, run, correlation=correlation, decoding=decoding, leaveout=leaveout, alpha=alpha) for subject_id, date in session_list]
+
+    print(f"\nanalyzing {len(session_list)} sessions")
+    print("-" * 40)
+    
+    results = []
+    for subject_id, date in tqdm(session_list, desc="Progress"):
+        result = analyze_single_session(subject_id, date, target_freq, run, 
+                                       correlation=correlation, decoding=decoding, 
+                                       leaveout=leaveout, alpha=alpha)
+        if result is not None:
+            results.append(result)
+    
+    print(f"\ncompleted: {len(results)}/{len(session_list)} sessions analyzed")
+    return results
 
 
 

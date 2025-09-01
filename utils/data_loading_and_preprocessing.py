@@ -213,7 +213,7 @@ def load_probes(exp_kwargs=None, ONE=None, exp_idx=None, dlc_frame_count=None):
     except (KeyError, IndexError, AttributeError):
         spikes_0 = None
         clusters_0 = None
-        print('No probe0 data found')
+       
     
     try:
         spikes_1 = poppy_spike_data.loc[exp_idx, 'probe1'].spikes.times  
@@ -221,7 +221,7 @@ def load_probes(exp_kwargs=None, ONE=None, exp_idx=None, dlc_frame_count=None):
     except (KeyError, IndexError, AttributeError):
         spikes_1 = None
         clusters_1 = None
-        print('No probe1 data found')
+        
     
     return spikes_0, clusters_0, spikes_1, clusters_1
 

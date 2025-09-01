@@ -4,8 +4,6 @@ import numpy as np
 import math
 
 
-
-
 def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end, n_neurons=100, color='#141414'):
     
     """
@@ -33,11 +31,11 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
     
     fig, axes = plt.subplots(3, 1, figsize=(10, 6), 
                                        gridspec_kw={'height_ratios': [0.5, 1, 1]},
-                                       sharex=True, dpi=300)
+                                       sharex=True)
 
     # set speed to Nan when not in context
     speed = speed.copy()
-    speed[~mask] = 0
+    speed[~mask] = np.nan
 
     # get neurons with highest positive and negative correlations
     pos_idx = np.where(correlations > 0)[0]
@@ -69,9 +67,17 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
     # plot speed
     axes[0].plot(speed[w_start:w_end], color=color, linewidth=1.5)
     axes[0].set_ylabel('speed\n(cm/s)', fontsize=16)
-    axes[0].set_ylim(0, math.ceil(int(np.nanmax(speed[w_start:w_end])) // 5 + 1)*5)
     axes[0].set_yticks(np.arange(0,50.1,50))
-    axes[0].tick_params(axis='y', labelsize=16) 
+    axes[0].tick_params(axis='y', labelsize=16)
+
+    max_speed = np.nanmax(speed[w_start:w_end])
+    if np.isnan(max_speed) or max_speed == 0:
+        y_max = 50
+    else:
+        y_max = math.ceil(int(max_speed) // 5 + 1) * 5
+
+    axes[0].set_ylim(0, y_max)
+    axes[0].set_yticks([0, y_max])  # Only 0 and the maximum
         
         
     # remove spines of speed axis
@@ -114,7 +120,7 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
 def plot_arena_reliability(corr_arena_half1, corr_arena_half2):
 
     # plot first half vs second half correlations between neural activity and arena speed
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(corr_arena_half1, corr_arena_half2, alpha=0.7, color='#195A2C', zorder=2, s=50)
 
     # axis formatting
@@ -143,7 +149,7 @@ def plot_arena_reliability(corr_arena_half1, corr_arena_half2):
 def plot_wheel_reliability(corr_wheel_haf1, corr_wheel_half2):
 
     # plot first half vs second half correlations between neural activity and wheel speed
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(corr_wheel_haf1, corr_wheel_half2, alpha=0.7, color='#7D0C81', zorder=2, s=50)
 
     # axis formatting
@@ -172,7 +178,7 @@ def plot_wheel_reliability(corr_wheel_haf1, corr_wheel_half2):
 def plot_arena_half1_vs_wheel_half2(corr_arena_half1, corr_wheel_half2):
 
     # plot first half correlations between neural activity and arena speed vs wheel speed
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(corr_arena_half1, corr_wheel_half2, alpha=0.7, color= '#141414' , zorder=2, s=50)
 
     # axis formatting
@@ -201,7 +207,7 @@ def plot_arena_half1_vs_wheel_half2(corr_arena_half1, corr_wheel_half2):
 def plot_arena_half2_vs_wheel_half1(corr_arena_half2, corr_wheel_half1):
 
     # plot second half correlations between neural activity and arena speed vs wheel speed
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(corr_arena_half2, corr_wheel_half1, alpha=0.7, color= '#141414' , zorder=2, s=50)
 
     # axis formatting
@@ -245,7 +251,7 @@ def plot_correlation_histogram(correlations,  p_vals, color='#141414'):
     """
         
     # plot histogram of correlations with significance indicated by color 
-    fig, ax = plt.subplots(figsize=(4, 8), dpi=150) 
+    fig, ax = plt.subplots(figsize=(4, 8)) 
     sig_pos_mask = np.where((correlations >0) & (p_vals < 0.05))
     sig_neg_mask = np.where((correlations < 0) & (p_vals < 0.05))
     neutral_mask = np.where( p_vals > 0.05)
@@ -323,7 +329,7 @@ def plot_reliability_stability(all_session_results):
         'GB012': 'MOs(3)'
     }
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 6), dpi=300)
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
     
     # plot hippocampus
     mask = brain_regions == 'hippocampus'
@@ -395,12 +401,9 @@ def plot_reliability_stability(all_session_results):
     plt.tight_layout()
 
 
-
-
-
 def plot_speed_tuning(centers_arena, tuning_arena, sem_arena, centers_wheel, tuning_wheel, sem_wheel,
-                      corr_arena, corr_wheel, sig_arena, sig_wheel, category,
-                      speed_arena, speed_wheel):
+                      corr_arena, corr_wheel, sig_arena, sig_wheel, speed_arena, speed_wheel,
+                        category):
     """
     Plot speed tuning curves for neurons selected based on category.
     
@@ -500,7 +503,8 @@ def plot_speed_tuning(centers_arena, tuning_arena, sem_arena, centers_wheel, tun
                 'o', color='#7D0C81', markersize=3)
         
         # axis formatting
-        ax.set_xlabel('running speed (cm/s)', fontsize=14)
+        if idx == 1:  # Only add xlabel on second (bottom) plot
+            ax.set_xlabel('running speed (cm/s)', fontsize=14)
         ax.set_ylabel('firing rate (Hz)', fontsize=14)
         max_rate_rounded = round(max_rate, 2)
         ax.set_yticks([0, max_rate_rounded])
