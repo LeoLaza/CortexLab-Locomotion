@@ -11,22 +11,14 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
     for selected context (arena or wheel).
 
     Parameters:
-    spike_counts : numpy array
-        spike counts for each neuron (rows) and frame (columns)
-    speed : numpy array
-        speed of mouse for each frame
-    mask : numpy array
-        boolean mask for selected context (True if in context)
-    correlations : numpy array
-        correlation with speed for each neuron
-    w_start : int
-        start index for window to plot
-    w_end : int
-        end index for window to plot
-    n_neurons : int
-        number of neurons to display for positive and negative correlations
-    color : str
-        color for significant correlations, for arena use '#195A2C', for wheel use '#7D0C81'
+    spike_counts : numpy array - spike counts for each neuron (rows) and frame (columns)
+    speed : numpy array - speed of mouse for each frame
+    mask : boolean array - identifies context
+    correlations : numpy array - correlation with speed for each neuron
+    w_start : int - start index for window to plot
+    w_end : int - end index for window to plot
+    n_neurons : int - number of neurons to display for positive and negative correlations
+    color : str - color for significant correlations, for arena use '#195A2C', for wheel use '#7D0C81'
     """
     
     fig, axes = plt.subplots(3, 1, figsize=(10, 6), 
@@ -35,7 +27,7 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
 
     # set speed to Nan when not in context
     speed = speed.copy()
-    speed[~mask] = np.nan
+    speed[~mask] = 0
 
     # get neurons with highest positive and negative correlations
     pos_idx = np.where(correlations > 0)[0]
@@ -56,7 +48,7 @@ def plot_raster_pos_neg(spike_counts, speed, mask, correlations, w_start, w_end,
         if len(spikes) > 0:
             non_zero_spikes = spikes[spikes > 0]
             if len(non_zero_spikes) > 0:
-            # Use percentile of non-zero values only
+            # use percentile of non-zero values only
                 vmax = np.percentile(non_zero_spikes, 30)  #ADJUST FOR VISUALISATION
             else:
                 vmax = 1
@@ -240,14 +232,9 @@ def plot_correlation_histogram(correlations,  p_vals, color='#141414'):
     
     Parameters:
     
-    correlations : numpy array
-        correlation with speed for each neuron
-
-    p_vals : numpy array
-        permutation test p-value for each neuron
-    
-    color : str
-        color for significant correlations, for arena use '#195A2C', for wheel use '#7D0C81'
+    correlations : numpy array - correlation with speed for each neuron
+    p_vals : numpy array - permutation test p-value for each neuron
+    color : str - color for significant correlations, for arena use '#195A2C', for wheel use '#7D0C81'
     """
         
     # plot histogram of correlations with significance indicated by color 
@@ -281,8 +268,7 @@ def plot_reliability_stability(all_session_results):
     
     Parameters:
 
-    all_session_results : list
-        contains result object for each session with metadata and correlation results
+    all_session_results : list - contains result object for each session with metadata and correlation results
     """
     
     # gather reliability and stability for each session distinguished by brain region
@@ -404,16 +390,6 @@ def plot_reliability_stability(all_session_results):
 def plot_speed_tuning(centers_arena, tuning_arena, sem_arena, centers_wheel, tuning_wheel, sem_wheel,
                       corr_arena, corr_wheel, sig_arena, sig_wheel, speed_arena, speed_wheel,
                         category):
-    """
-    Plot speed tuning curves for neurons selected based on category.
-    
-    Parameters:
-    centers_arena : array
-        
-    category : str
-        One of: 'arena-only', 'wheel-only', 'context-invariant', 
-                'context-switching', 'non-encoding'
-    """
     
     # define neuron category masks
     arena_only_mask = sig_arena & ~sig_wheel

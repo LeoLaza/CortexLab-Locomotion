@@ -10,15 +10,15 @@ def plot_category_scatter(result, categories):
     colors = ["#000000", '#195A2C', '#7D0C81', '#083356']
     category_fields = [categories.context_invariant, categories.arena_only, categories.wheel_only, categories.context_switching]
 
-    # Create the scatter plot
+    # create the scatter plot
     fig, ax = plt.subplots(figsize=(4, 4))
 
-    # Plot the data for each category with its specific color
+    # plot the data for each category with its specific color
     for i in range(len(labels)):
-        # Get the boolean mask for the current category
+        # get the boolean mask for the current category
         mask = category_fields[i]
         
-        # Use the mask to select the relevant data points
+        # use the mask to select the relevant data points
         ax.scatter(result.correlations.arena[mask], result.correlations.wheel[mask], 
                 c=colors[i], label=labels[i], alpha=0.7, s=50)
 
@@ -26,7 +26,6 @@ def plot_category_scatter(result, categories):
     ax.set_xlabel('correlation arena', fontsize=14)
     ax.set_ylabel('correlation wheel', fontsize=14)
 
-    # Optional: Add lines to indicate zero correlation
     ax.axhline(0, color='gray', linewidth=0.8, linestyle='--')
     ax.axvline(0, color='gray', linewidth=0.8, linestyle='--')
     ax.set_xticks(np.arange(-0.4, 0.41, 0.4))
@@ -52,21 +51,21 @@ def plot_category_pie_chart(result, categories):
     labels = ['Context\ninvariant', 'Arena\nonly', 'Wheel\nonly', 'Context\nswitching', 'Non-\nencoding']
     colors = ["#000000", '#195A2C', '#7D0C81', '#083356', '#D3D3D3']
 
-    # Create pie chart
+    # create pie chart
     fig, ax = plt.subplots(figsize=(6, 6))
     wedges, texts, autotexts = ax.pie(counts, labels=labels, colors=colors, autopct='%1.1f%%',
                                     startangle=90, pctdistance=0.85,
-                                    textprops={'fontsize': 500})  # Increased from 10 to 14
+                                    textprops={'fontsize': 500})  
 
-    # Make percentage text bold and bigger
+    # make percentage text bold and bigger
     for autotext in autotexts:
         autotext.set_weight('bold')
         autotext.set_color('white')
-        autotext.set_fontsize(16)  # Set percentage font size explicitly
+        autotext.set_fontsize(16) 
 
-    # Make label text bigger
+    # make label text bigger
     for text in texts:
-        text.set_fontsize(18)  # Set label font size explicitly
+        text.set_fontsize(18)  
 
     ax.set_title(f'{result.metadata.subject_id} - {result.metadata.date}', fontsize=12, pad=20)
     
@@ -74,7 +73,7 @@ def plot_category_pie_chart(result, categories):
 
 def plot_correlation_distributions(all_session_results, context='arena'):
     
-    # Define colors
+    # define colors
     colors = {
         'hippocampus': "#A5CB5D",  
         'striatum': "#E37A2A",
@@ -83,7 +82,7 @@ def plot_correlation_distributions(all_session_results, context='arena'):
         'MOs(3)': "#D26E6E"   # GB012
     }
     
-    # Organize data by subject
+    # organize data by subject
     data_by_subject = {}
     for result in all_session_results:
         if result.spike_counts is None:
@@ -93,13 +92,13 @@ def plot_correlation_distributions(all_session_results, context='arena'):
         if subject_id not in data_by_subject:
             data_by_subject[subject_id] = []
         
-        # Get correlations based on context
+        # get correlations based on context
         if context == 'wheel':
             data_by_subject[subject_id].append(result.correlations.wheel)
         else:
             data_by_subject[subject_id].append(result.correlations.arena)
     
-    # For MOs mice (AV043, GB011, GB012), randomly select 3 sessions
+    # for MOs mice (AV043, GB011, GB012), randomly select 3 sessions
     mos_subjects = ['AV043', 'GB011', 'GB012']
     for subject in mos_subjects:
         if subject in data_by_subject:
@@ -110,10 +109,10 @@ def plot_correlation_distributions(all_session_results, context='arena'):
                     data_by_subject[subject][i] for i in indices
                 ]
     
-    # Create single figure with wider aspect ratio
+
     fig, ax = plt.subplots(figsize=(12, 6))
     
-    # Define order and labels for plotting
+    # define order and labels for plotting
     plot_order = [
         ('AV043', 'MOs1', 'MOs(1)'),
         ('GB011', 'MOs2', 'MOs(2)'),
@@ -124,16 +123,16 @@ def plot_correlation_distributions(all_session_results, context='arena'):
     
     positions = []
     labels = []
-    spacing = 1.5  # Increased spacing between histograms
+    spacing = 1.5  
     
     for idx, (subject_id, label, color_key) in enumerate(plot_order):
-        position = idx * spacing  # Apply spacing multiplier
+        position = idx * spacing  
         
         if subject_id in data_by_subject:
             positions.append(position)
             labels.append(label)
             
-            # Pool all correlations from selected sessions
+            # pool all correlations from selected sessions
             pooled_correlations = []
             
             for corr in data_by_subject[subject_id]:
@@ -141,12 +140,12 @@ def plot_correlation_distributions(all_session_results, context='arena'):
             
             pooled_correlations = np.array(pooled_correlations)
             
-            # Show all correlations
+            # show all correlations
             if len(pooled_correlations) > 0:
                 hist, bins = np.histogram(pooled_correlations, bins=70, range=(-0.5, 0.5))
-                # Normalize by total neuron count to show proportion
+                # normalize by total neuron count to show proportion
                 hist = hist / len(pooled_correlations)
-                # Scale for display width
+                # scale for display width
                 hist = hist / 0.1 * 0.5  # Slightly wider histograms
                 bin_centers = (bins[:-1] + bins[1:]) / 2
                 
@@ -165,7 +164,7 @@ def plot_correlation_distributions(all_session_results, context='arena'):
     ax.tick_params(axis='y', labelsize=18)
     ax.set_title(f"{context}", fontsize=18)
     
-    # Add vertical lines to separate brain regions with adjusted positions
+    # add vertical lines to separate brain regions with adjusted positions
     ax.axvline(2.5 * spacing, color='gray', linestyle=':', alpha=0.3)
     ax.axvline(3.5 * spacing, color='gray', linestyle=':', alpha=0.3)
     

@@ -24,8 +24,7 @@ def plot_context_preference(all_session_results):
     Plot comparison of time spent in arena vs wheel context for all sessions.
 
     Parameters:
-    all_session_results : list
-        comprises results objects for each session containing behavior summary data
+    all_session_results : list - comprises results objects for each session containing behavior summary data
     """
     
     # gather occupancy data for each context across sessions
@@ -106,8 +105,7 @@ def plot_reliability_occupation(all_session_results):
     Side by side plot of correlation between reliability and time spent in each context across sessions.
 
     Parameters:
-    all_session_results : list
-        comprises results objects for each session containing behavior summary and correlation data
+    all_session_results : list - comprises results objects for each session containing behavior summary and correlation data
     """
 
     # gather reliability and occupancy data for each context across sessions
@@ -166,8 +164,7 @@ def plot_stability_speed_distribution_similarity(all_session_results, run=False)
     Plot correlation between session stability and similarity of speed distributions across contexts.
 
     Parameters:
-    all_session_results : list
-        comprises results objects for each session containing behavior summary and correlation data
+    all_session_results : list - comprises results objects for each session containing behavior summary and correlation data
     """
 
     # gather stability and compute speed distribution similarity for each session
@@ -248,9 +245,9 @@ def plot_stability_speed_distribution_similarity(all_session_results, run=False)
 def plot_mean_speed_comparison(all_session_results):
     """
     Plot comparison of mean speed in arena vs wheel context for all sessions.
+
     Parameters:
-    all_session_results : list
-        comprises results objects for each session containing behavior summary data
+    all_session_results : list - comprises results objects for each session containing behavior summary data
     """
     
     # gather mean speed data for each context across sessions
@@ -330,16 +327,11 @@ def plot_locomotion_detection(behavior, w_start=0, w_end=200,
         Plot speed traces with positon masks and detected locomotion bouts.
         
         Parameters:
-        behavior :  Bunch object
-            single session behavioral variables containing speed and mask data
-        running_arena : array
-            boolean array indicating detected locomotion bouts in arena context
-        running_wheel : array
-            boolean array indicating detected locomotion bouts in wheel context
-        w_start : int
-            start index for plotting window
-        w_end : int
-            end index for plotting window
+        behavior :  Bunch object - single session behavioral variables containing speed and mask data
+        running_arena : boolean array - detected locomotion bouts in arena context
+        running_wheel : boolean array - detected locomotion bouts in wheel context
+        w_start : int - start index for plotting window
+        w_end : int - end index for plotting window
         """
   
     
