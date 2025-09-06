@@ -1,12 +1,3 @@
-"""
-High-level pipeline functions for complete session analysis.
-
-This module handles:
-- Complete single session processing workflows
-- Multi-session analysis coordination
-- Integration of all analysis modules
-"""
-
 import numpy as np
 from types import SimpleNamespace as Bunch
 from .behavioral_analysis import *
@@ -19,6 +10,19 @@ from tqdm import tqdm
 
 
 def load_session_data(subject_id, date, target_freq=10):
+    """
+    Load and synchronize all data streams for one session.
+    
+    Parameters:
+    subject_id : str - animal ID
+    date : str - experiment date
+    target_freq : float - sampling rate (Hz) for alignment
+    
+    Returns:
+    metadata : Bunch - experiment info and ROI parameters
+    behavior : Bunch - position, speed, and context data
+    spike_counts : array or None - binned neural data
+    """
 
     exp_kwargs = {
         'subject': subject_id, 
@@ -53,7 +57,6 @@ def load_session_data(subject_id, date, target_freq=10):
     run_arena, bout_info_arena= get_locomotion_bouts(speed_arena, pos_arena)
     run_wheel, bout_info_wheel= get_locomotion_bouts(speed_wheel, pos_wheel)
     
-
     # generate spike histogram 
     spikes_0, clusters_0, spikes_1, clusters_1 = load_probes(exp_kwargs, None, exp_idx)
     
@@ -76,7 +79,6 @@ def load_session_data(subject_id, date, target_freq=10):
             spikes = spikes_0
             clusters = clusters_0
 
-        # Create histogram as usual
         spike_counts = get_spike_hist(spikes, clusters, bin_edges)
         spike_counts = filter_spike_counts(spike_counts, pos_arena, pos_wheel)
 
@@ -119,8 +121,19 @@ def load_session_data(subject_id, date, target_freq=10):
 
 
 def compute_behavioral_summary(behavior, metadata, run=False):
+    """
+    Calculate summary statistics for behavioral performance.
     
-    # Extract existing data
+    Parameters:
+    run : bool - analyze running periods only vs all time
+    
+    Adds to behavior.summary:
+    metadata : Bunch - experiment info and ROI parameters
+    behavior : Bunch - position, speed, and context data
+    time_spent, occupancy percentages, mean speeds, classification accuracy
+    """
+    
+    # extract existing data
     speed_arena = behavior.speed_arena
     speed_wheel = behavior.speed_wheel
     bin_width = metadata.bin_width
@@ -133,7 +146,7 @@ def compute_behavioral_summary(behavior, metadata, run=False):
         mask_arena= behavior.pos_arena 
         mask_wheel= behavior.pos_wheel
     
-    # Time analysis
+    # time analysis
     time_arena = np.sum(mask_arena) * bin_width / 60  
     time_wheel = np.sum(mask_wheel) * bin_width / 60  
     total_time = (len(mask_arena) * bin_width) / 60
@@ -141,24 +154,34 @@ def compute_behavioral_summary(behavior, metadata, run=False):
     occupancy_arena = (time_arena / total_time) * 100
     occupancy_wheel = (time_wheel / total_time) * 100
     
-    # Speed analysis - only during locomotion periods
+    # speed analysis 
     mean_speed_arena = np.mean(speed_arena[mask_arena]) if np.any(mask_arena) else 0
     mean_speed_wheel = np.mean(speed_wheel[mask_wheel]) if np.any(mask_wheel) else 0
     
-    accuracy = get_classification_accuracy(mask_wheel, behavior.rotary_position, bin_width)
     
-    # Add to behavior bunch
+    # add to behavior bunch
     behavior.summary = Bunch(
         time_spent=Bunch(arena=time_arena, wheel=time_wheel, total=total_time),
         occupancy=Bunch(arena=occupancy_arena, wheel=occupancy_wheel),
         mean_speed=Bunch(arena=mean_speed_arena, wheel=mean_speed_wheel),
-        accuracy=accuracy
     )
     
     return behavior
 
 
 def perform_correlation_analyses(behavior, spike_counts, run=False):
+    """
+    Complete correlation analysis pipeline.
+
+    Parameters:
+    behavior : Bunch - position, speed, and context data
+    spike_counts : array or None - binned neural data
+    run : bool - analyze running periods only vs all time
+
+    Returns:
+    Bunch with speed correlations, split-half reliability,
+    cross-context stability, and speed tuning curves
+    """
 
     # think of validation for behavior  
     if spike_counts is None:
@@ -188,7 +211,7 @@ def perform_correlation_analyses(behavior, spike_counts, run=False):
     valid = ~(np.isnan(corr_arena) | np.isnan(corr_wheel))
     corr_cross_context = np.corrcoef(corr_arena[valid], corr_wheel[valid])[0, 1] if np.sum(valid) > 1 else np.nan
     
-    # Stability
+    # stability
     corr_arena_half1, corr_arena_half2, corr_wheel_half1, corr_wheel_half2, reliability_arena, reliability_wheel = get_split_half_correlations(
         spike_counts,
         speed_arena, 
@@ -209,7 +232,7 @@ def perform_correlation_analyses(behavior, spike_counts, run=False):
     max_speed_arena = np.nanmax(speed_arena[mask_arena])
     max_speed_wheel = np.nanmax(speed_wheel[mask_wheel])
 
-    # Create bins with same width
+    # ccreate bins with same width
     bin_width = 2.0  # cm/s
     bins_arena = np.arange(0, max_speed_arena + bin_width, bin_width)
     bins_wheel = np.arange(0, max_speed_wheel + bin_width, bin_width)
@@ -260,6 +283,18 @@ def get_lag_metrics(cross_corr, lags):
 
 
 def perform_decoding_analyses(behavior, spike_counts, run=False, leaveout=None, alpha=None):
+    """
+    Decode speed from neural activity using Ridge regression.
+    
+    Parameters:
+    behavior : Bunch - position, speed, and context data
+    spike_counts : array or None - binned neural data
+    leaveout : bool - run progressive neuron removal analysis
+    alpha : list - regularization parameters for cross-validation
+    
+    Returns:
+    Bunch with models, weights, predictions, performance metrics
+    """
 
     if spike_counts is None:
         print("No spike counts were provided for decoding")
@@ -279,7 +314,6 @@ def perform_decoding_analyses(behavior, spike_counts, run=False, leaveout=None, 
 
     spike_counts = gaussian_filter1d(spike_counts, 3, axis=1)
    
-    
 
     # split data into train and test sets
     train_data, test_data = split_for_decoding(spike_counts, speed_arena, speed_wheel, mask_arena, mask_wheel)
@@ -342,7 +376,7 @@ def perform_decoding_analyses(behavior, spike_counts, run=False, leaveout=None, 
 
 def analyze_single_session(subject_id, date, target_freq, run=False, correlation=True, decoding=True, leaveout=True, alpha=[0.1, 1, 10, 100, 500, 1000]):
    
-     # load data
+    # load data
     metadata, behavior, spike_counts = load_session_data(subject_id, date, target_freq)
     behavior = compute_behavioral_summary(behavior, metadata, run)
 
@@ -351,7 +385,7 @@ def analyze_single_session(subject_id, date, target_freq, run=False, correlation
     decoding_results = None
 
     
-    # Run analyses
+    # run analyses
     if correlation:
         correlation_results = perform_correlation_analyses(behavior, spike_counts, run)
 

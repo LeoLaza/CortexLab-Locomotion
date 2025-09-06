@@ -6,7 +6,6 @@ from .behavioral_analysis import (
     temporal_buffer,
     get_ROI,
     preprocess_frame,
-    get_classification_accuracy,
     get_locomotion_bouts
 )
 

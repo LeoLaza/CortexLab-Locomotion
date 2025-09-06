@@ -6,7 +6,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def split_for_decoding(spike_counts, speed_arena, speed_wheel, mask_arena, mask_wheel):
+    """
+    Split data temporally for train/test, normalize using training stats only.
     
+    Parameters:
+    spike_counts : array (n_neurons, n_time)
+    speed_arena/wheel : arrays - speed in each context  
+    mask_arena/wheel : bool arrays - context periods
+    
+    Returns:
+    train_data : Bunch - normalized first half data
+    test_data : Bunch - normalized second half (using train parameters)
+    """
     epsilon = 1e-8 
     # calculate the half point of the spike counts
     halfpoint = len(spike_counts[1]) // 2
@@ -81,19 +92,13 @@ def split_for_decoding(spike_counts, speed_arena, speed_wheel, mask_arena, mask_
 
 
 def train_model(spike_counts, speed, alpha=None):
-    
-    
     model = RidgeCV(alphas=alpha, store_cv_values=True)
     model.fit(spike_counts, speed)
 
     return model
 
-   
-
-
 
 def compute_leaveout_analysis(train_data, test_data, weights_arena, weights_wheel, alpha=None):
-
     contexts = ['arena', 'wheel']
     n_iterations = len(weights_arena) - 1
     control_weights = np.arange(len(weights_wheel))

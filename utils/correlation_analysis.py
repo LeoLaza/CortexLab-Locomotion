@@ -7,7 +7,6 @@ from types import SimpleNamespace as Bunch
 
 def get_speed_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
 
-
     n_neurons = spike_counts.shape[0]
 
     
@@ -16,26 +15,29 @@ def get_speed_correlations(spike_counts, oa_speed, wh_speed, oa_mask, wh_mask):
 
     oa_var = np.var(spike_counts[:, oa_mask], axis=1)
     wh_var = np.var(spike_counts[:, wh_mask], axis=1)
-
-  
     
-    # Remove neurons with zero variance in any split
+    # remove neurons with zero variance in any split
     good_neurons = ~(oa_var == 0) & ~(wh_var == 0) 
     good_indices = np.where(good_neurons)[0]
 
-   
-
     for i in good_indices:
-            # Free running correlation
+            # arena running correlation
             r_oa[i] = np.corrcoef(oa_speed[oa_mask], spike_counts[i, oa_mask])[0, 1]
         
-            # Wheel running correlation
+            # wheel running correlation
             r_wh[i] = np.corrcoef(wh_speed[wh_mask], spike_counts[i, wh_mask])[0, 1]
 
 
     return r_oa, r_wh
 
+
 def get_cross_context_correlations(r_oa, r_wh):
+    """
+    Correlate speed-encoding between contexts.
+    
+    Returns:
+    float - correlation coefficient between arena and wheel encoding
+    """
 
     valid = ~(np.isnan(r_oa) | np.isnan(r_wh))
     r_oa_wh = np.corrcoef(r_oa[valid], r_wh[valid])[0,1]
@@ -43,9 +45,22 @@ def get_cross_context_correlations(r_oa, r_wh):
     return r_oa_wh
 
 
-
 def get_split_half_correlations(spike_counts, speed_arena, speed_wheel, mask_arena, mask_wheel, split = 2):
+    """
+    Get context correlations for each half.
     
+    Parameters:
+    spike_counts : array (n_neurons, n_time)
+    speed_arena/wheel : arrays - speed in each context
+    mask_arena/wheel : bool arrays - context periods
+    split : int - divide data into this many parts
+    
+    Returns:
+    corr_arena_half1/2, corr_wheel_half1/2 : arrays - correlations per half
+    reliability_arena/wheel : float - correlation between halves
+    """
+    
+    # identify arena and wheel positions for each half
     midpoint =  spike_counts.shape[1] // split
 
     arena_half1_idx = np.where(mask_arena[:midpoint])[0]
@@ -53,18 +68,20 @@ def get_split_half_correlations(spike_counts, speed_arena, speed_wheel, mask_are
     wheel_half1_idx = np.where(mask_wheel[:midpoint])[0]
     wheel_half2_idx = np.where(mask_wheel[midpoint:])[0] + midpoint
 
+    # remove neurons with zero variance in any split
     arena_half1_var = np.var(spike_counts[:, arena_half1_idx], axis=1)
     arena_half2_var = np.var(spike_counts[:, arena_half2_idx ], axis=1)
     wheel_half1_var = np.var(spike_counts[:, wheel_half1_idx], axis=1)
     wheel_half2_var = np.var(spike_counts[:, wheel_half2_idx], axis=1)
     
-    # Remove neurons with zero variance in any split
+    
     good_neurons = ~((arena_half1_var == 0) | (arena_half2_var == 0) | 
                      (wheel_half1_var == 0) | (wheel_half2_var  == 0))
     
     spike_counts = spike_counts[good_neurons, :]
     n_neurons = spike_counts.shape[0]
 
+    # calculate correlations between speed and spikes for each half and context
     corr_arena_half1 = np.zeros(n_neurons)
     corr_arena_half2 = np.zeros(n_neurons)
     corr_wheel_half1 = np.zeros(n_neurons)
@@ -80,7 +97,7 @@ def get_split_half_correlations(spike_counts, speed_arena, speed_wheel, mask_are
         except Exception as e:
             pass
 
-    
+    # could remove, since no stability calculated here 
     reliability_arena = np.corrcoef(corr_arena_half1, corr_arena_half2)[0,1]
     reliability_wheel = np.corrcoef(corr_wheel_half1, corr_wheel_half2)[0,1]
 
@@ -105,10 +122,27 @@ def get_reliability_stability(corr_arena_half1, corr_arena_half2, corr_wheel_hal
         return reliability, stability
 
 def compute_speed_tuning(spike_counts, speed, mask, speed_bins, dt=0.1):
+    """
+    Generate speed tuning curves.
     
+    Parameters:
+    spike_counts : array (n_neurons, n_time)
+    speed : array - instantaneous speed
+    mask : bool array - include these timepoints
+    speed_bins : array - bin edges for speed
+    dt : float - bin duration for rate conversion
+    
+    Returns:
+    bin_centers : array - speed values for tuning curve
+    firing_rates : array (n_neurons, n_bins) - mean rates
+    firing_sem : array - standard error per bin
+    """
+    
+    # identify speed and spikes for context
     context_speed = speed[mask]
     context_spikes = spike_counts[:, mask]
     
+    # set speed values for tuning curves
     bin_centers = 0.5 * (speed_bins[:-1] + speed_bins[1:])
     n_neurons = spike_counts.shape[0]
     n_bins = len(bin_centers)
@@ -135,6 +169,18 @@ def compute_speed_tuning(spike_counts, speed, mask, speed_bins, dt=0.1):
 
 
 def run_permutation_test(all_session_results, run= False, alpha=0.05):
+    """
+    Test significance by comparing correlation to correlation with behavior
+    from all other sessions' behavior.
+    
+    Parameters:
+    all_session_results : list of session Bunches
+    run : bool - use running periods only vs all periods
+    alpha : float - FDR correction threshold
+    
+    Modifies in-place:
+    adds 'permutation' field with p-values and significance masks
+    """
 
 
     for i, experimental_session in enumerate(all_session_results):
@@ -150,7 +196,7 @@ def run_permutation_test(all_session_results, run= False, alpha=0.05):
                 if i == j:  # Skip self
                     continue
             
-                # Handle length mismatches between experimental spikes and control behavior
+                # handle length mismatches between experimental spikes and control behavior
                 spikes_length = experimental_session.spike_counts.shape[1]
                 speed_length = len(control.behavior.speed_arena)
                 min_length = min(spikes_length, speed_length)
